@@ -1,0 +1,224 @@
+{
+  "app_name": "BillCal",
+  "personality": "1 iOS-Native Clean",
+  "personality_one_liner": "A polished, highly readable, and functional bill tracking calendar inspired by Outlook, focusing on clarity, native iOS interactions, and calm utility.",
+  "color": {
+    "light": {
+      "surface": "#F9FAFB",
+      "onSurface": "#111827",
+      "surfaceSecondary": "#FFFFFF",
+      "onSurfaceSecondary": "#374151",
+      "surfaceTertiary": "#F3F4F6",
+      "onSurfaceTertiary": "#4B5563",
+      "surfaceInverse": "#111827",
+      "onSurfaceInverse": "#FFFFFF",
+      "brand": "#15803D",
+      "brandPrimary": "#15803D",
+      "onBrandPrimary": "#FFFFFF",
+      "brandSecondary": "#86EFAC",
+      "onBrandSecondary": "#14532D",
+      "brandTertiary": "#DCFCE7",
+      "onBrandTertiary": "#166534",
+      "success": "#10B981",
+      "onSuccess": "#FFFFFF",
+      "warning": "#F59E0B",
+      "onWarning": "#FFFFFF",
+      "error": "#EF4444",
+      "onError": "#FFFFFF",
+      "info": "#6B7280",
+      "onInfo": "#FFFFFF",
+      "border": "#E5E7EB",
+      "borderStrong": "#D1D5DB",
+      "divider": "#F3F4F6"
+    },
+    "dark": {
+      "surface": "#111827",
+      "onSurface": "#F9FAFB",
+      "surfaceSecondary": "#1F2937",
+      "onSurfaceSecondary": "#E5E7EB",
+      "surfaceTertiary": "#374151",
+      "onSurfaceTertiary": "#D1D5DB",
+      "surfaceInverse": "#F9FAFB",
+      "onSurfaceInverse": "#111827",
+      "brand": "#22C55E",
+      "brandPrimary": "#22C55E",
+      "onBrandPrimary": "#000000",
+      "brandSecondary": "#166534",
+      "onBrandSecondary": "#86EFAC",
+      "brandTertiary": "#14532D",
+      "onBrandTertiary": "#DCFCE7",
+      "success": "#10B981",
+      "onSuccess": "#000000",
+      "warning": "#F59E0B",
+      "onWarning": "#000000",
+      "error": "#EF4444",
+      "onError": "#FFFFFF",
+      "info": "#9CA3AF",
+      "onInfo": "#000000",
+      "border": "#374151",
+      "borderStrong": "#4B5563",
+      "divider": "#1F2937"
+    }
+  },
+  "typography": {
+    "displayFontFamily": "Plus Jakarta Sans",
+    "textFontFamily": "Geist",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Generous iOS-native padding. No cramped lists. Use large hit targets (min 44x44pt). Use sticky CTAs at the bottom of scrolling forms.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": "1",
+  "navigation": "bottom_tabs",
+  "icon_set": "Ionicons",
+  "glassmorphism": {
+    "enabled": true,
+    "do's": [
+      "Bottom tab bar",
+      "Sticky section headers over scrolling lists",
+      "Pinned segmented controls/filters when content scrolls behind them"
+    ],
+    "dont's": [
+      "Every single list row or button",
+      "Form fields",
+      "Body text regions"
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-blur",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Auth (Login/Register)",
+      "purpose": "Email/password authentication.",
+      "states": {
+        "loading": "Spinner over disabled CTA",
+        "empty": "N/A",
+        "error": "Standard alert or inline red error message"
+      },
+      "layout": "Single column. Top hero graphic or app logo. Labels above text inputs. Primary 'Sign In' CTA sticky at the bottom inside KeyboardAvoidingView."
+    },
+    {
+      "name": "Calendar (main)",
+      "purpose": "Outlook-style calendar view showing due dates and an agenda list below.",
+      "states": {
+        "loading": "Skeleton grid for month, skeleton rows for agenda",
+        "empty": "Empty state illustration in the agenda section when no bills exist for the selected date",
+        "error": "Retry button in the agenda view"
+      },
+      "layout": "Vertical split. Top section: Month/Week toggleable calendar grid on surfaceSecondary. Bills indicated by subtle brandPrimary dots/badges on dates. Bottom section: Scrollable agenda list of bills for the selected date. Pinned header with glassmorphism for the date title. List items have minimum 56pt height."
+    },
+    {
+      "name": "Bills List & Dashboard Summary",
+      "purpose": "Dashboard summary of totals and a filterable list of all bills.",
+      "states": {
+        "loading": "Skeleton list rows",
+        "empty": "Minimalist receipt illustration with 'No upcoming bills' text.",
+        "error": "Readable error message with Retry CTA."
+      },
+      "layout": "Top section: A featured hero card (surfaceSecondary or subtle brandTertiary tint) showing 'Total Due This Month' and a mini summary. Below: Segmented control (Pinned, glassmorphism on scroll) to switch between 'Upcoming', 'Paid', and 'All'. List rows feature a leading icon in a brandTertiary tinted rounded square."
+    },
+    {
+      "name": "Add/Edit Bill",
+      "purpose": "Form to create or edit a recurring bill.",
+      "states": {
+        "loading": "Saving overlay spinner",
+        "empty": "N/A",
+        "error": "Inline validation errors on form fields."
+      },
+      "layout": "Standard single-column form. Labels above inputs. Native pickers for dates and recurrence. Sticky primary CTA anchored at the bottom (safe area aware) with a glass or solid fade background behind it."
+    },
+    {
+      "name": "Bill Detail",
+      "purpose": "Detailed view of a specific bill to mark it paid or edit.",
+      "states": {
+        "loading": "Skeleton UI",
+        "empty": "N/A",
+        "error": "Retry button"
+      },
+      "layout": "Top cover banner with abstract green finance image + linear gradient scrim (top to bottom fade to surfaceInverse). Text positioned at the bottom of the image. Below: Details grouped cleanly in surfaceSecondary cards. Large 'Mark as Paid' CTA sticky at bottom."
+    },
+    {
+      "name": "Bank Sync",
+      "purpose": "Mock bank connection dashboard showing linked accounts and balances.",
+      "states": {
+        "loading": "Skeleton cards",
+        "empty": "Bank vault image with 'Connect your first bank account' CTA.",
+        "error": "Error card showing sync failure and a reconnect button."
+      },
+      "layout": "Header: Sync status and last updated timestamp. Top row: Horizontally scrolling or grid layout of linked bank accounts on surfaceSecondary cards. Below: Activity feed / recent transactions. Use secure modern banking vault image for empty state."
+    },
+    {
+      "name": "Settings",
+      "purpose": "Preferences, notifications, and theme settings.",
+      "states": {
+        "loading": "N/A",
+        "empty": "N/A",
+        "error": "N/A"
+      },
+      "layout": "Grouped iOS-style lists. Each row has a leading icon inside a tinted rounded square. Toggles for notifications and theme."
+    }
+  ],
+  "images": {
+    "dashboard_hero_bg": {
+      "url": "https://images.unsplash.com/photo-1648878136531-15e7d3a88e76?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1OTN8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMGdyZWVuJTIwZmluYW5jZSUyMGJhY2tncm91bmR8ZW58MHx8fHwxNzgxNTg0NDQ0fDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Abstract green finance waves background"
+    },
+    "calendar_empty": {
+      "url": "https://images.unsplash.com/photo-1493934558415-9d19f0b2b4d2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2Mzl8MHwxfHNlYXJjaHwxfHxjbGVhbiUyMG1pbmltYWxpc3QlMjBkZXNrJTIwY2FsZW5kYXJ8ZW58MHx8fHwxNzgxNTg0NDQ0fDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Clean minimalist desk computer"
+    },
+    "bank_vault": {
+      "url": "https://images.unsplash.com/photo-1582139329536-e7284fece509?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTZ8MHwxfHNlYXJjaHwxfHxzZWN1cmUlMjBtb2Rlcm4lMjBiYW5raW5nJTIwdmF1bHR8ZW58MHx8fHwxNzgxNTg0NDQ0fDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Secure modern bank vault door"
+    },
+    "bills_empty": {
+      "url": "https://images.unsplash.com/photo-1585119192382-71236d43b689?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzR8MHwxfHNlYXJjaHwxfHxtaW5pbWFsaXN0JTIwcGFwZXIlMjByZWNlaXB0JTIwb24lMjBkZXNrfGVufDB8fHx8MTc4MTU4NDQ1N3ww&ixlib=rb-4.1.0&q=85",
+      "alt": "Minimalist blank paper receipt on desk"
+    }
+  },
+  "haptics": {
+    "primary_button_press": "impactLight",
+    "tab_switch": "selection",
+    "mark_paid_success": "notificationSuccess",
+    "toggle_switch": "selection",
+    "calendar_date_select": "selection"
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the color palette provided in light/dark objects. The primary brand color is a trust-focused green (#15803D / #22C55E). Do NOT use any blue, indigo, or purple anywhere in the app.",
+    "Ensure the Calendar (main) screen implements a native-feeling grid. The calendar should be the hero component, allowing users to tap a date and view a scrollable 'agenda' list of bills below it.",
+    "Implement the 'Sticky primary CTA' pattern on the Add/Edit Bill screen and Bill Detail screen. The button must be anchored at the bottom with a glassmorphism (expo-blur) background layer so content can scroll behind it gracefully.",
+    "Use 'Plus Jakarta Sans' for display/headings and 'Geist' for standard text. Keep font weights at 400 or 500 maximum. Do not use 600+ or bold.",
+    "For the Bill Detail and Dashboard hero components, use the provided Unsplash images with an `expo-linear-gradient` scrim overlaid to guarantee text contrast. Text should be positioned at the bottom of the image area.",
+    "List items (Bills, Settings) must have a minimum 56pt tappable height. Feature a leading Ionicons icon inside a `brandTertiary` tinted rounded square.",
+    "Research highlights: Mobile calendar UIs work best when avoiding over-decoration. Rely on typographic hierarchy and spacing. Keep dates visually dominant, using simple dots/badges for bill due indicators."
+  ]
+}
