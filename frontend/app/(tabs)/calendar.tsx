@@ -35,7 +35,7 @@ export default function CalendarScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [cursor, setCursor] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(ymd(new Date()));
-  const [zoom, setZoom] = useState(-2); // -2..+2, default -2 (zoomed out so all 7 days fit)
+  const [zoom, setZoom] = useState(-1); // -2..+2, default -1 (zoomed in one step from min)
 
   const load = useCallback(async () => {
     if (!token) return;
