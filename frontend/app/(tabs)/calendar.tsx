@@ -137,84 +137,87 @@ export default function CalendarScreen() {
         })}
       </View>
 
-      <View style={[s.calendarCard, { backgroundColor: theme.surfaceSecondary, borderColor: theme.border }]}>
-        <View style={s.weekRow}>
-          {WEEKDAYS.map(w => (
-            <Text key={w} style={[s.weekday, { color: theme.info }]}>{w}</Text>
-          ))}
-        </View>
-        <View style={s.grid}>
-          {view.cells.map((d, idx) => {
-            if (!d) return <View key={idx} style={[s.cell, { height: cellHeight, borderColor: theme.divider }]} />;
-            const k = ymd(d);
-            const isSelected = k === selectedDate;
-            const isToday = k === todayStr;
-            const dayBills = billsByDate[k] || [];
-            const visible = dayBills.slice(0, maxBills);
-            const overflow = dayBills.length - visible.length;
-            return (
-              <Pressable
-                key={idx}
-                testID={`calendar-day-${k}`}
-                style={[s.cell, { height: cellHeight, borderColor: theme.divider }]}
-                onPress={() => setSelectedDate(k)}
-              >
-                <View style={[
-                  s.cellInner,
-                  isSelected && { backgroundColor: theme.brandTertiary, borderColor: theme.brandPrimary, borderWidth: 1 },
-                ]}>
-                  <View style={s.cellHeader}>
-                    <View style={[
-                      s.dayNumWrap,
-                      isMonth ? null : s.dayNumWrapLarge,
-                      isToday && { backgroundColor: theme.brandPrimary },
-                    ]}>
-                      <Text style={[
-                        isMonth ? s.cellNum : s.cellNumLarge,
-                        { color: isToday ? theme.onBrandPrimary : (isSelected ? theme.onBrandTertiary : theme.onSurface) },
-                      ]}>{d.getDate()}</Text>
+      {isMonth ? (
+        <View style={[s.calendarCard, { backgroundColor: theme.surfaceSecondary, borderColor: theme.border }]}>
+          <View style={s.weekRow}>
+            {WEEKDAYS.map(w => (
+              <Text key={w} style={[s.weekday, { color: theme.info }]}>{w}</Text>
+            ))}
+          </View>
+          <View style={s.grid}>
+            {view.cells.map((d, idx) => {
+              if (!d) return <View key={idx} style={[s.cell, { height: cellHeight, borderColor: theme.divider }]} />;
+              const k = ymd(d);
+              const isSelected = k === selectedDate;
+              const isToday = k === todayStr;
+              const dayBills = billsByDate[k] || [];
+              const visible = dayBills.slice(0, maxBills);
+              const overflow = dayBills.length - visible.length;
+              return (
+                <Pressable
+                  key={idx}
+                  testID={`calendar-day-${k}`}
+                  style={[s.cell, { height: cellHeight, borderColor: theme.divider }]}
+                  onPress={() => setSelectedDate(k)}
+                >
+                  <View style={[
+                    s.cellInner,
+                    isSelected && { backgroundColor: theme.brandTertiary, borderColor: theme.brandPrimary, borderWidth: 1 },
+                  ]}>
+                    <View style={s.cellHeader}>
+                      <View style={[
+                        s.dayNumWrap,
+                        isToday && { backgroundColor: theme.brandPrimary },
+                      ]}>
+                        <Text style={[
+                          s.cellNum,
+                          { color: isToday ? theme.onBrandPrimary : (isSelected ? theme.onBrandTertiary : theme.onSurface) },
+                        ]}>{d.getDate()}</Text>
+                      </View>
+                    </View>
+                    <View style={s.billsStack}>
+                      {visible.map(b => (
+                        <Pressable
+                          key={b.id}
+                          testID={`cell-bill-${b.id}`}
+                          onPress={() => router.push(`/bill/${b.id}`)}
+                          style={[
+                            s.billPill,
+                            {
+                              backgroundColor: b.paid ? theme.success : theme.warning,
+                              opacity: b.paid ? 0.55 : 1,
+                            },
+                          ]}
+                        >
+                          <Text numberOfLines={1} style={s.billPillText}>{b.title}</Text>
+                        </Pressable>
+                      ))}
+                      {overflow > 0 && (
+                        <Text style={[s.moreText, { color: theme.onSurfaceSecondary }]} numberOfLines={1}>
+                          +{overflow} more
+                        </Text>
+                      )}
                     </View>
                   </View>
-                  <View style={s.billsStack}>
-                    {visible.map(b => (
-                      <Pressable
-                        key={b.id}
-                        testID={`cell-bill-${b.id}`}
-                        onPress={() => router.push(`/bill/${b.id}`)}
-                        style={[
-                          isMonth ? s.billPill : s.billPillLarge,
-                          {
-                            backgroundColor: b.paid ? theme.success : theme.warning,
-                            opacity: b.paid ? 0.55 : 1,
-                          },
-                        ]}
-                      >
-                        <Text numberOfLines={1} style={isMonth ? s.billPillText : s.billPillTextLarge}>
-                          {isMonth ? b.title : `${b.title} · $${b.amount.toFixed(0)}`}
-                        </Text>
-                      </Pressable>
-                    ))}
-                    {overflow > 0 && (
-                      <Text style={[isMonth ? s.moreText : s.moreTextLarge, { color: theme.onSurfaceSecondary }]} numberOfLines={1}>
-                        +{overflow} more
-                      </Text>
-                    )}
-                  </View>
-                </View>
-              </Pressable>
-            );
-          })}
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
-      </View>
+      ) : null}
 
       <View style={s.agendaHeader}>
         <Text style={[s.agendaTitle, { color: theme.onSurface }]} testID="agenda-title">
-          {new Date(selectedDate).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
+          {isMonth
+            ? new Date(selectedDate).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })
+            : "Upcoming bills by day"}
         </Text>
-        <Text style={[s.agendaCount, { color: theme.onSurfaceSecondary }]}>{agenda.length} bill{agenda.length === 1 ? "" : "s"}</Text>
+        <Text style={[s.agendaCount, { color: theme.onSurfaceSecondary }]}>
+          {isMonth ? `${agenda.length} bill${agenda.length === 1 ? "" : "s"}` : ""}
+        </Text>
       </View>
 
-      {loading ? <ActivityIndicator color={theme.brandPrimary} style={{ marginTop: 24 }} /> : (
+      {loading ? <ActivityIndicator color={theme.brandPrimary} style={{ marginTop: 24 }} /> : isMonth ? (
         <FlatList
           testID="agenda-list"
           data={agenda}
@@ -250,6 +253,73 @@ export default function CalendarScreen() {
                     : <Text style={[s.paidTag, { color: theme.warning }]}>Due</Text>}
                 </View>
               </Pressable>
+            );
+          }}
+        />
+      ) : (
+        <FlatList
+          testID="day-list"
+          data={view.cells as Date[]}
+          keyExtractor={(d) => ymd(d)}
+          contentContainerStyle={{ paddingHorizontal: SPACING.lg, paddingBottom: 100 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={theme.brandPrimary} />}
+          renderItem={({ item: d }) => {
+            const k = ymd(d);
+            const isToday = k === todayStr;
+            const dayBills = billsByDate[k] || [];
+            const dayTotal = dayBills.reduce((sum, b) => sum + (b.paid ? 0 : b.amount), 0);
+            return (
+              <View testID={`day-card-${k}`} style={[s.dayCard, { backgroundColor: theme.surfaceSecondary, borderColor: isToday ? theme.brandPrimary : theme.border, borderWidth: isToday ? 1.5 : 1 }]}>
+                <View style={s.dayCardHeader}>
+                  <View style={s.dayLeft}>
+                    <Text style={[s.dayWeekday, { color: isToday ? theme.brandPrimary : theme.onSurfaceSecondary }]}>
+                      {d.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase()}
+                    </Text>
+                    <Text style={[s.dayNumBig, { color: isToday ? theme.brandPrimary : theme.onSurface }]}>{d.getDate()}</Text>
+                    <Text style={[s.dayMonth, { color: theme.onSurfaceSecondary }]}>
+                      {d.toLocaleDateString("en-US", { month: "short" })}
+                    </Text>
+                  </View>
+                  <View style={s.dayRight}>
+                    {dayBills.length === 0 ? (
+                      <Text style={{ color: theme.info, fontSize: 13 }}>No bills</Text>
+                    ) : (
+                      <>
+                        {dayBills.map(b => {
+                          const cat = CATEGORIES.find(c => c.key === b.category) || CATEGORIES[CATEGORIES.length - 1];
+                          return (
+                            <Pressable
+                              key={b.id}
+                              testID={`day-bill-${b.id}`}
+                              onPress={() => router.push(`/bill/${b.id}`)}
+                              style={[s.dayBillRow, { borderLeftColor: b.paid ? theme.success : theme.warning }]}
+                            >
+                              <View style={[s.dayBillIcon, { backgroundColor: theme.brandTertiary }]}>
+                                <Ionicons name={cat.icon as any} size={14} color={theme.onBrandTertiary} />
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={[s.dayBillTitle, { color: theme.onSurface }]} numberOfLines={1}>{b.title}</Text>
+                                <Text style={[s.dayBillSub, { color: theme.onSurfaceSecondary }]} numberOfLines={1}>{b.category}</Text>
+                              </View>
+                              <View style={{ alignItems: "flex-end" }}>
+                                <Text style={[s.dayBillAmt, { color: theme.onSurface }]}>${b.amount.toFixed(2)}</Text>
+                                <Text style={{ color: b.paid ? theme.success : theme.warning, fontSize: 10, fontWeight: "500" }}>
+                                  {b.paid ? "PAID" : "DUE"}
+                                </Text>
+                              </View>
+                            </Pressable>
+                          );
+                        })}
+                        {dayTotal > 0 && (
+                          <Text style={{ color: theme.onSurfaceSecondary, fontSize: 11, marginTop: 6, textAlign: "right" }}>
+                            Due: <Text style={{ color: theme.warning, fontWeight: "500" }}>${dayTotal.toFixed(2)}</Text>
+                          </Text>
+                        )}
+                      </>
+                    )}
+                  </View>
+                </View>
+              </View>
             );
           }}
         />
@@ -305,5 +375,17 @@ const s = StyleSheet.create({
   itemSub: { fontSize: 12, marginTop: 2 },
   amount: { fontSize: 15, fontWeight: "500" },
   paidTag: { fontSize: 11, fontWeight: "500", marginTop: 2 },
+  dayCard: { borderRadius: RADIUS.md, borderWidth: 1, padding: SPACING.md, marginBottom: SPACING.sm },
+  dayCardHeader: { flexDirection: "row", alignItems: "flex-start", gap: SPACING.md },
+  dayLeft: { width: 52, alignItems: "center" },
+  dayRight: { flex: 1 },
+  dayWeekday: { fontSize: 10, fontWeight: "500", letterSpacing: 0.5 },
+  dayNumBig: { fontSize: 26, fontWeight: "500", lineHeight: 30 },
+  dayMonth: { fontSize: 11 },
+  dayBillRow: { flexDirection: "row", alignItems: "center", paddingVertical: SPACING.sm, paddingLeft: SPACING.md, borderLeftWidth: 3, gap: SPACING.sm, marginBottom: 4 },
+  dayBillIcon: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  dayBillTitle: { fontSize: 14, fontWeight: "500" },
+  dayBillSub: { fontSize: 11, marginTop: 1 },
+  dayBillAmt: { fontSize: 14, fontWeight: "500" },
   fab: { position: "absolute", right: SPACING.lg, bottom: 24, width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 6 },
 });
