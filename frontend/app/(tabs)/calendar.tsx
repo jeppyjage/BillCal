@@ -35,6 +35,7 @@ export default function CalendarScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [cursor, setCursor] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(ymd(new Date()));
+  const [zoom, setZoom] = useState(-2); // -2..+2, default -2 (zoomed out so all 7 days fit)
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -76,6 +77,13 @@ export default function CalendarScreen() {
   const goPrev = () => setCursor(new Date(month.y, month.m - 1, 1));
   const goNext = () => setCursor(new Date(month.y, month.m + 1, 1));
 
+  // Zoom levels: -2 (smallest) ... +2 (largest)
+  const z = Math.max(-2, Math.min(2, zoom));
+  const CELL_WIDTH = [70, 100, 150, 180, 220][z + 2];
+  const CELL_HEIGHT = [70, 95, 130, 160, 190][z + 2];
+  const MAX_BILLS = [1, 2, 4, 5, 6][z + 2];
+  const PILL_FS = [9, 10, 11, 12, 13][z + 2];
+
   const numRows = month.cells.length / 7;
 
   return (
@@ -96,6 +104,26 @@ export default function CalendarScreen() {
         <Text style={[s.headerTitle, { color: theme.onSurface }]} testID="month-title">
           {MONTHS[month.m]} {month.y}
         </Text>
+        <View style={{ flex: 1 }} />
+        <View style={[s.zoomGroup, { borderColor: theme.border, backgroundColor: theme.surfaceSecondary }]}>
+          <Pressable
+            testID="zoom-out-btn"
+            onPress={() => setZoom(v => Math.max(-2, v - 1))}
+            disabled={z <= -2}
+            style={[s.zoomBtn, { opacity: z <= -2 ? 0.4 : 1 }]}
+          >
+            <Ionicons name="remove" size={16} color={theme.onSurface} />
+          </Pressable>
+          <View style={[s.zoomDivider, { backgroundColor: theme.border }]} />
+          <Pressable
+            testID="zoom-in-btn"
+            onPress={() => setZoom(v => Math.min(2, v + 1))}
+            disabled={z >= 2}
+            style={[s.zoomBtn, { opacity: z >= 2 ? 0.4 : 1 }]}
+          >
+            <Ionicons name="add" size={16} color={theme.onSurface} />
+          </Pressable>
+        </View>
       </View>
 
       {loading ? <ActivityIndicator color={theme.brandPrimary} style={{ marginTop: 24 }} /> : (
@@ -124,7 +152,7 @@ export default function CalendarScreen() {
                   const isSelected = k === selectedDate;
                   const isToday = k === todayStr;
                   const dayBills = billsByDate[k] || [];
-                  const visible = dayBills.slice(0, 4);
+                  const visible = dayBills.slice(0, MAX_BILLS);
                   const overflow = dayBills.length - visible.length;
                   return (
                     <Pressable
@@ -134,6 +162,7 @@ export default function CalendarScreen() {
                         s.cell,
                         {
                           width: CELL_WIDTH,
+                          height: CELL_HEIGHT,
                           borderColor: theme.border,
                           backgroundColor: theme.surface,
                         },
@@ -169,7 +198,7 @@ export default function CalendarScreen() {
                                 },
                               ]}
                             >
-                              <Text numberOfLines={1} style={[s.pillText, { color: theme.onSurface, textDecorationLine: b.paid ? "line-through" : "none" }]}>
+                              <Text numberOfLines={1} style={[s.pillText, { color: theme.onSurface, fontSize: PILL_FS, textDecorationLine: b.paid ? "line-through" : "none" }]}>
                                 ${b.amount.toFixed(0)} {b.title}
                               </Text>
                               {b.recurrence !== "none" && (
@@ -204,9 +233,6 @@ export default function CalendarScreen() {
   );
 }
 
-const CELL_HEIGHT = 130;
-const CELL_WIDTH = 150;
-
 const s = StyleSheet.create({
   root: { flex: 1 },
   header: {
@@ -217,12 +243,14 @@ const s = StyleSheet.create({
   navGroup: { flexDirection: "row", alignItems: "center" },
   chev: { width: 32, height: 36, alignItems: "center", justifyContent: "center" },
   headerTitle: { fontSize: 17, fontWeight: "500" },
+  zoomGroup: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 10, overflow: "hidden", height: 36 },
+  zoomBtn: { width: 32, height: 36, alignItems: "center", justifyContent: "center" },
+  zoomDivider: { width: 1, height: "100%" },
   weekRow: { flexDirection: "row", borderBottomWidth: 0.5, paddingVertical: 8 },
   weekCell: { alignItems: "center" },
   weekday: { fontSize: 11, fontWeight: "500", letterSpacing: 0.5, textTransform: "uppercase" },
   grid: { flexDirection: "row", flexWrap: "wrap" },
   cell: {
-    height: CELL_HEIGHT,
     borderRightWidth: 0.5,
     borderBottomWidth: 0.5,
     padding: 6,
@@ -239,9 +267,9 @@ const s = StyleSheet.create({
     borderRadius: 4,
     paddingHorizontal: 6,
     paddingVertical: 3,
-    minHeight: 22,
+    minHeight: 18,
   },
-  pillText: { fontSize: 11, fontWeight: "500", flex: 1 },
+  pillText: { fontWeight: "500", flex: 1 },
   moreText: { fontSize: 11, marginLeft: 4, fontWeight: "500" },
   fab: {
     position: "absolute", right: SPACING.lg, bottom: 24, width: 56, height: 56, borderRadius: 28,
