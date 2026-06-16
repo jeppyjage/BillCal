@@ -77,12 +77,11 @@ export default function CalendarScreen() {
   const goPrev = () => setCursor(new Date(month.y, month.m - 1, 1));
   const goNext = () => setCursor(new Date(month.y, month.m + 1, 1));
 
-  // Zoom levels: -2 (smallest) ... +2 (largest)
+  // Zoom now only adjusts cell HEIGHT (width is always 1/7 of screen).
   const z = Math.max(-2, Math.min(2, zoom));
-  const CELL_WIDTH = [70, 100, 150, 180, 220][z + 2];
-  const CELL_HEIGHT = [70, 95, 130, 160, 190][z + 2];
-  const MAX_BILLS = [1, 2, 4, 5, 6][z + 2];
-  const PILL_FS = [9, 10, 11, 12, 13][z + 2];
+  const CELL_HEIGHT = [90, 130, 170, 210, 250][z + 2];
+  const MAX_BILLS = [2, 3, 4, 5, 6][z + 2];
+  const PILL_FS = [10, 11, 12, 13, 14][z + 2];
 
   const numRows = month.cells.length / 7;
 
@@ -127,99 +126,88 @@ export default function CalendarScreen() {
       </View>
 
       {loading ? <ActivityIndicator color={theme.brandPrimary} style={{ marginTop: 24 }} /> : (
-        <ScrollView
-          style={{ flex: 1 }}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ flexGrow: 1 }}
-        >
-          <View>
-            <View style={[s.weekRow, { borderBottomColor: theme.border, width: CELL_WIDTH * 7 }]}>
-              {WEEKDAYS.map(w => (
-                <View key={w} style={[s.weekCell, { width: CELL_WIDTH }]}>
-                  <Text style={[s.weekday, { color: theme.onSurfaceSecondary }]}>{w}</Text>
-                </View>
-              ))}
-            </View>
-            <ScrollView
-              contentContainerStyle={{ paddingBottom: 100 }}
-              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={theme.brandPrimary} />}
-            >
-              <View style={[s.grid, { width: CELL_WIDTH * 7 }]}>
-                {month.cells.map((d, idx) => {
-                  const k = ymd(d);
-                  const inMonth = d.getMonth() === month.m;
-                  const isSelected = k === selectedDate;
-                  const isToday = k === todayStr;
-                  const dayBills = billsByDate[k] || [];
-                  const visible = dayBills.slice(0, MAX_BILLS);
-                  const overflow = dayBills.length - visible.length;
-                  return (
-                    <Pressable
-                      key={idx}
-                      testID={`calendar-day-${k}`}
-                      style={[
-                        s.cell,
-                        {
-                          width: CELL_WIDTH,
-                          height: CELL_HEIGHT,
-                          borderColor: theme.border,
-                          backgroundColor: theme.surface,
-                        },
-                        isSelected && { borderColor: theme.brandPrimary, borderWidth: 1.5, backgroundColor: theme.brandTertiary + "33" },
-                      ]}
-                      onPress={() => setSelectedDate(k)}
-                    >
-                      <View style={s.cellHeader}>
-                        {isToday ? (
-                          <View style={[s.todayCircle, { backgroundColor: theme.brandPrimary }]}>
-                            <Text style={[s.todayNum, { color: theme.onBrandPrimary }]}>{d.getDate()}</Text>
-                          </View>
-                        ) : (
-                          <Text style={[s.dayNum, { color: inMonth ? theme.onSurface : theme.info, fontWeight: d.getDate() === 1 ? "600" : "400" }]}>
-                            {d.getDate() === 1 ? `${MONTHS[d.getMonth()].slice(0, 3)} 1` : String(d.getDate()).padStart(2, "0")}
-                          </Text>
-                        )}
-                      </View>
-                      <View style={s.billsStack}>
-                        {visible.map(b => {
-                          const accent = CAT_COLORS[b.category] || CAT_COLORS.Other;
-                          return (
-                            <Pressable
-                              key={b.id}
-                              testID={`cell-bill-${b.id}`}
-                              onPress={() => router.push(`/bill/${b.id}`)}
-                              style={[
-                                s.pill,
-                                {
-                                  backgroundColor: theme.surfaceSecondary,
-                                  borderLeftColor: accent,
-                                  opacity: b.paid ? 0.5 : 1,
-                                },
-                              ]}
-                            >
-                              <Text numberOfLines={1} style={[s.pillText, { color: theme.onSurface, fontSize: PILL_FS, textDecorationLine: b.paid ? "line-through" : "none" }]}>
-                                ${b.amount.toFixed(0)} {b.title}
-                              </Text>
-                              {b.recurrence !== "none" && (
-                                <Ionicons name="repeat" size={11} color={theme.onSurfaceSecondary} style={{ marginLeft: 2 }} />
-                              )}
-                            </Pressable>
-                          );
-                        })}
-                        {overflow > 0 && (
-                          <Text style={[s.moreText, { color: theme.onSurfaceSecondary }]} numberOfLines={1}>
-                            +{overflow} more
-                          </Text>
-                        )}
-                      </View>
-                    </Pressable>
-                  );
-                })}
+        <>
+          <View style={[s.weekRow, { borderBottomColor: theme.border }]}>
+            {WEEKDAYS.map(w => (
+              <View key={w} style={s.weekCell}>
+                <Text style={[s.weekday, { color: theme.onSurfaceSecondary }]}>{w}</Text>
               </View>
-            </ScrollView>
+            ))}
           </View>
-        </ScrollView>
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingBottom: 100 }}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={theme.brandPrimary} />}
+          >
+            <View style={s.grid}>
+              {month.cells.map((d, idx) => {
+                const k = ymd(d);
+                const inMonth = d.getMonth() === month.m;
+                const isSelected = k === selectedDate;
+                const isToday = k === todayStr;
+                const dayBills = billsByDate[k] || [];
+                const visible = dayBills.slice(0, MAX_BILLS);
+                const overflow = dayBills.length - visible.length;
+                return (
+                  <Pressable
+                    key={idx}
+                    testID={`calendar-day-${k}`}
+                    style={[
+                      s.cell,
+                      {
+                        height: CELL_HEIGHT,
+                        borderColor: theme.border,
+                        backgroundColor: theme.surface,
+                      },
+                      isSelected && { borderColor: theme.brandPrimary, borderWidth: 1.5, backgroundColor: theme.brandTertiary + "33" },
+                    ]}
+                    onPress={() => setSelectedDate(k)}
+                  >
+                    <View style={s.cellHeader}>
+                      {isToday ? (
+                        <View style={[s.todayCircle, { backgroundColor: theme.brandPrimary }]}>
+                          <Text style={[s.todayNum, { color: theme.onBrandPrimary }]}>{d.getDate()}</Text>
+                        </View>
+                      ) : (
+                        <Text style={[s.dayNum, { color: inMonth ? theme.onSurface : theme.info, fontWeight: d.getDate() === 1 ? "600" : "400" }]}>
+                          {d.getDate() === 1 ? `${MONTHS[d.getMonth()].slice(0, 3)} 1` : String(d.getDate()).padStart(2, "0")}
+                        </Text>
+                      )}
+                    </View>
+                    <View style={s.billsStack}>
+                      {visible.map(b => {
+                        const accent = CAT_COLORS[b.category] || CAT_COLORS.Other;
+                        return (
+                          <Pressable
+                            key={b.id}
+                            testID={`cell-bill-${b.id}`}
+                            onPress={() => router.push(`/bill/${b.id}`)}
+                            style={[
+                              s.pill,
+                              {
+                                backgroundColor: accent,
+                                opacity: b.paid ? 0.45 : 1,
+                              },
+                            ]}
+                          >
+                            <Text numberOfLines={1} style={[s.pillText, { color: "#FFFFFF", fontSize: PILL_FS, textDecorationLine: b.paid ? "line-through" : "none" }]}>
+                              {b.title}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                      {overflow > 0 && (
+                        <Text style={[s.moreText, { color: theme.onSurfaceSecondary }]} numberOfLines={1}>
+                          +{overflow} more
+                        </Text>
+                      )}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </ScrollView>
+        </>
       )}
 
       <Pressable
@@ -247,30 +235,29 @@ const s = StyleSheet.create({
   zoomBtn: { width: 32, height: 36, alignItems: "center", justifyContent: "center" },
   zoomDivider: { width: 1, height: "100%" },
   weekRow: { flexDirection: "row", borderBottomWidth: 0.5, paddingVertical: 8 },
-  weekCell: { alignItems: "center" },
+  weekCell: { flex: 1, alignItems: "center" },
   weekday: { fontSize: 11, fontWeight: "500", letterSpacing: 0.5, textTransform: "uppercase" },
   grid: { flexDirection: "row", flexWrap: "wrap" },
   cell: {
+    width: `${100 / 7}%`,
     borderRightWidth: 0.5,
     borderBottomWidth: 0.5,
-    padding: 6,
+    padding: 4,
   },
-  cellHeader: { marginBottom: 6 },
+  cellHeader: { marginBottom: 4, alignItems: "center" },
   dayNum: { fontSize: 13 },
   todayCircle: { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   todayNum: { fontSize: 13, fontWeight: "600" },
-  billsStack: { gap: 3 },
+  billsStack: { gap: 2 },
   pill: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderLeftWidth: 3,
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
+    borderRadius: 3,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
     minHeight: 18,
+    justifyContent: "center",
   },
-  pillText: { fontWeight: "500", flex: 1 },
-  moreText: { fontSize: 11, marginLeft: 4, fontWeight: "500" },
+  pillText: { fontWeight: "500", textAlign: "center" },
+  moreText: { fontSize: 10, textAlign: "center", fontWeight: "500" },
   fab: {
     position: "absolute", right: SPACING.lg, bottom: 24, width: 56, height: 56, borderRadius: 28,
     alignItems: "center", justifyContent: "center",
