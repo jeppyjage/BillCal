@@ -110,14 +110,18 @@ export default function CalendarScreen() {
 
   const txByDate = useMemo(() => {
     const map: Record<string, BankTransaction[]> = {};
+    // Hide expense transactions that match a Bill (same category + amount within $1).
+    // The Bill record represents that payment, so showing the tx would duplicate it.
+    const matchesBill = (t: BankTransaction): boolean =>
+      bills.some(b => b.category === t.category && Math.abs(Math.abs(t.amount) - b.amount) < 1);
     transactions.forEach(t => {
-      // Only show "important" transactions: |amount| >= $25 (filter out coffees, etc.)
       if (Math.abs(t.amount) < 20) return;
+      if (t.amount < 0 && matchesBill(t)) return;
       if (!map[t.date]) map[t.date] = [];
       map[t.date].push(t);
     });
     return map;
-  }, [transactions]);
+  }, [transactions, bills]);
 
   // Categories that should be treated as "bill-like" expenses (count toward Bills, not Spent)
   const BILL_CATEGORIES = ["Rent", "Utilities", "Subscriptions", "Insurance", "Internet", "Phone", "Credit Card"];
@@ -207,20 +211,23 @@ export default function CalendarScreen() {
                 const k = ymd(d);
                 (billsByDate[k] || []).forEach(b => {
                   billsTotal += b.amount; weekBills.push(b);
-                  // Paid bills also count as money spent
-                  if (b.paid) txTotal += b.amount;
                 });
                 (txByDate[k] || []).forEach(t => {
                   if (t.amount < 0) {
                     const amt = Math.abs(t.amount);
                     if (BILL_CATEGORIES.includes(t.category)) {
+                      // Unmatched bill-category tx counts as a Bill
                       billsTotal += amt;
+                    } else {
+                      // Non-bill-category tx adds extra to Spent only
+                      txTotal += amt;
                     }
-                    txTotal += amt;
                     weekTxs.push(t);
                   }
                 });
               });
+              // Spent always >= Bills: Spent = Bills + non-bill extras
+              const spentTotal = billsTotal + txTotal;
               const weekTotal = billsTotal + txTotal;
               const isExpanded = expandedWeek === weekIdx;
               return (
@@ -238,7 +245,7 @@ export default function CalendarScreen() {
                         Bills ${billsTotal.toFixed(0)}
                       </Text>
                       <Text style={{ color: theme.onSurface, fontSize: 13, fontWeight: "500" }}>
-                        Spent ${txTotal.toFixed(0)}
+                        Total ${spentTotal.toFixed(0)}
                       </Text>
                       <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={14} color={theme.onSurfaceSecondary} />
                     </View>
