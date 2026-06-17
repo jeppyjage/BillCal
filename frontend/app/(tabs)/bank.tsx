@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -6,6 +6,7 @@ import { useFocusEffect } from "expo-router";
 import { useAuth } from "@/src/context/AuthContext";
 import { useTheme, SPACING, RADIUS } from "@/src/theme";
 import { api, BankAccount, BankTransaction } from "@/src/api/client";
+import PieChart from "@/src/components/PieChart";
 
 function fmt(n: number) {
   const sign = n < 0 ? "-" : "";
@@ -21,6 +22,19 @@ export default function BankScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
+  const [insightMode, setInsightMode] = useState<"category" | "merchant">("category");
+
+  const insightData = useMemo(() => {
+    const groups: Record<string, number> = {};
+    txs.forEach(t => {
+      if (t.amount >= 0) return; // expenses only
+      const key = insightMode === "category" ? t.category : t.description;
+      groups[key] = (groups[key] || 0) + Math.abs(t.amount);
+    });
+    return Object.entries(groups)
+      .map(([label, value]) => ({ label, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [txs, insightMode]);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -98,6 +112,26 @@ export default function BankScreen() {
               ))}
             </ScrollView>
 
+            <Text style={[s.sectionTitle, { color: theme.onSurface, marginTop: SPACING.xl }]}>Spending Insights</Text>
+            <View style={[s.insightCard, { backgroundColor: theme.surfaceSecondary, borderColor: theme.border }]} testID="spending-insights">
+              <View style={s.toggleRow}>
+                {(["category", "merchant"] as const).map(mode => {
+                  const active = insightMode === mode;
+                  return (
+                    <Pressable
+                      key={mode}
+                      testID={`insight-${mode}`}
+                      onPress={() => setInsightMode(mode)}
+                      style={[s.toggleBtn, { backgroundColor: active ? theme.brandPrimary : theme.surfaceTertiary, borderColor: active ? theme.brandPrimary : theme.border }]}
+                    >
+                      <Text style={{ color: active ? theme.onBrandPrimary : theme.onSurface, fontSize: 12, fontWeight: "500", textTransform: "capitalize" }}>By {mode}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <PieChart data={insightData} onColor={theme.onSurface} secondaryColor={theme.surfaceSecondary} />
+            </View>
+
             <Text style={[s.sectionTitle, { color: theme.onSurface, marginTop: SPACING.xl }]}>Recent Activity</Text>
             <View style={{ paddingHorizontal: SPACING.lg }}>
               {txs.length === 0 ? (
@@ -138,4 +172,7 @@ const s = StyleSheet.create({
   accIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   txRow: { flexDirection: "row", alignItems: "center", paddingVertical: SPACING.md, borderBottomWidth: 0.5, gap: SPACING.md },
   txIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  insightCard: { marginHorizontal: SPACING.lg, padding: SPACING.md, borderRadius: RADIUS.md, borderWidth: 1 },
+  toggleRow: { flexDirection: "row", gap: SPACING.sm, marginBottom: SPACING.md },
+  toggleBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: RADIUS.pill, borderWidth: 1 },
 });
