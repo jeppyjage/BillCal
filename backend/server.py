@@ -259,12 +259,12 @@ async def seed_example_bills(current_user: dict = Depends(get_current_user)):
     def offset(days: int) -> str:
         return (today + timedelta(days=days)).isoformat()
     examples = [
-        {"title": "Electricity Bill",   "amount":   84.50, "due_date": offset(3),   "category": "Utilities",     "recurrence": "monthly"},
+        {"title": "Electricity Bill",   "amount":   84.50, "due_date": offset(3),   "category": "Rent & Utilities",     "recurrence": "monthly"},
         {"title": "Internet",           "amount":   59.00, "due_date": offset(3),   "category": "Internet",      "recurrence": "monthly"},
         {"title": "Phone Plan",         "amount":   45.00, "due_date": offset(-7),  "category": "Phone",         "recurrence": "monthly"},
         {"title": "Netflix",            "amount":   15.49, "due_date": offset(10),  "category": "Subscriptions", "recurrence": "monthly"},
         {"title": "Car Insurance",      "amount":  120.00, "due_date": offset(10),  "category": "Insurance",     "recurrence": "monthly"},
-        {"title": "Apartment Rent",     "amount": 1450.00, "due_date": offset(18),  "category": "Rent",          "recurrence": "monthly"},
+        {"title": "Apartment Rent",     "amount": 1450.00, "due_date": offset(18),  "category": "Rent & Utilities", "recurrence": "monthly"},
         {"title": "Visa Credit Card",   "amount":  342.75, "due_date": offset(25),  "category": "Credit Card",   "recurrence": "monthly"},
     ]
     created: List[Bill] = []
@@ -362,14 +362,14 @@ MOCK_BANKS = [
 ]
 
 MOCK_TX_TEMPLATES = [
-    ("Electricity - Powerlink", -84.50, "Utilities"),
+    ("Electricity - Powerlink", -84.50, "Rent & Utilities"),
     ("Spotify Premium", -10.99, "Subscriptions"),
     ("Whole Foods Market", -56.32, "Groceries"),
     ("Salary - Acme Corp", 2400.00, "Income"),
-    ("Internet - Fastnet", -59.00, "Utilities"),
+    ("Internet - Fastnet", -59.00, "Rent & Utilities"),
     ("Netflix", -15.49, "Subscriptions"),
     ("Coffee - BluePeak", -4.75, "Food"),
-    ("Rent - Maple Properties", -1450.00, "Rent"),
+    ("Rent - Maple Properties", -1450.00, "Rent & Utilities"),
 ]
 
 
@@ -418,6 +418,20 @@ async def trigger_sync(current_user: dict = Depends(get_current_user)):
 
 
 # ---------- Health ----------
+def _norm_cat(c: str) -> str:
+    return "Rent & Utilities" if c in ("Rent", "Utilities") else c
+
+
+@app.on_event("startup")
+async def _migrate_categories():
+    """Merge legacy Rent / Utilities categories into 'Rent & Utilities' once on startup."""
+    try:
+        await db.bills.update_many({"category": {"$in": ["Rent", "Utilities"]}}, {"$set": {"category": "Rent & Utilities"}})
+        await db.bank_transactions.update_many({"category": {"$in": ["Rent", "Utilities"]}}, {"$set": {"category": "Rent & Utilities"}})
+    except Exception:
+        pass
+
+
 @api_router.get("/")
 async def root():
     return {"message": "BillCal API", "status": "ok"}

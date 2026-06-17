@@ -60,8 +60,7 @@ export const useTheme = (): Theme => {
 export const useIsDark = () => useColorScheme() === "dark";
 
 export const CATEGORIES = [
-  { key: "Utilities", icon: "flash" },
-  { key: "Rent", icon: "home" },
+  { key: "Rent & Utilities", icon: "home" },
   { key: "Subscriptions", icon: "play-circle" },
   { key: "Credit Card", icon: "card" },
   { key: "Insurance", icon: "shield-checkmark" },
