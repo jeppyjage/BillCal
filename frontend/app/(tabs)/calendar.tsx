@@ -244,8 +244,8 @@ export default function CalendarScreen() {
                       <Text style={{ color: theme.warning, fontSize: 13, fontWeight: "500" }}>
                         Bills ${billsTotal.toFixed(0)}
                       </Text>
-                      <Text style={{ color: theme.onSurface, fontSize: 13, fontWeight: "600" }}>
-                        Spent ${(billsTotal + txTotal).toFixed(0)}
+                      <Text style={{ color: theme.onSurface, fontSize: 13, fontWeight: "500" }}>
+                        Spent ${txTotal.toFixed(0)}
                       </Text>
                       <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={14} color={theme.onSurfaceSecondary} />
                     </View>
