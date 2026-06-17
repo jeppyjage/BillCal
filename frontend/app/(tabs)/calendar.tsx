@@ -238,114 +238,6 @@ export default function CalendarScreen() {
               const isExpanded = expandedWeek === weekIdx;
               return (
                 <View key={`week-${weekIdx}`}>
-                  <View style={s.weekGrid}>
-                    {week.map((d, idx) => {
-                      const k = ymd(d);
-                      const inMonth = d.getMonth() === month.m;
-                      const isSelected = k === selectedDate;
-                      const isToday = k === todayStr;
-                      const dayBills = billsByDate[k] || [];
-                      const dayTxs = txByDate[k] || [];
-                      const visible = dayBills.slice(0, MAX_BILLS);
-                      const txVisible = dayTxs.slice(0, Math.max(1, MAX_BILLS - visible.length));
-                      const overflow = (dayBills.length - visible.length) + (dayTxs.length - txVisible.length);
-                      return (
-                        <Pressable
-                          key={idx}
-                          testID={`calendar-day-${k}`}
-                          style={[
-                            s.cell,
-                            {
-                              height: CELL_HEIGHT,
-                              borderColor: theme.border,
-                              backgroundColor: theme.surface,
-                            },
-                            isSelected && { borderColor: theme.brandPrimary, borderWidth: 1.5, backgroundColor: theme.brandTertiary + "33" },
-                          ]}
-                          onPress={() => setSelectedDate(k)}
-                        >
-                          <View style={s.cellHeader}>
-                            {isToday ? (
-                              <View style={[s.todayCircle, { backgroundColor: theme.brandPrimary }]}>
-                                <Text style={[s.todayNum, { color: theme.onBrandPrimary }]}>{d.getDate()}</Text>
-                              </View>
-                            ) : (
-                              <Text style={[s.dayNum, { color: inMonth ? theme.onSurface : theme.info, fontWeight: d.getDate() === 1 ? "600" : "400" }]}>
-                                {d.getDate() === 1 ? `${MONTHS[d.getMonth()].slice(0, 3)} 1` : String(d.getDate()).padStart(2, "0")}
-                              </Text>
-                            )}
-                          </View>
-                          <View style={s.billsStack}>
-                            {visible.map(b => {
-                              return (
-                                <Pressable
-                                  key={b.id}
-                                  testID={`cell-bill-${b.id}`}
-                                  onPress={() => setPopup({ type: "bill", data: b })}
-                                  style={[
-                                    s.pill,
-                                    {
-                                      backgroundColor: theme.warning,
-                                      opacity: b.paid ? 0.45 : 1,
-                                    },
-                                  ]}
-                                >
-                                  <Text numberOfLines={1} style={[s.pillText, { color: "#FFFFFF", fontSize: PILL_FS, textDecorationLine: b.paid ? "line-through" : "none" }]}>
-                                    {b.title}
-                                  </Text>
-                                </Pressable>
-                              );
-                            })}
-                            {txVisible.map(t => {
-                              const isCredit = t.amount > 0;
-                              const isBillLike = !isCredit && BILL_CATEGORIES.includes(t.category);
-                              if (isBillLike) {
-                                // Render as an orange bill-style pill so visual matches the Bills total
-                                return (
-                                  <Pressable
-                                    key={t.id}
-                                    testID={`cell-tx-${t.id}`}
-                                    onPress={() => setPopup({ type: "tx", data: t })}
-                                    style={[
-                                      s.pill,
-                                      { backgroundColor: theme.warning },
-                                    ]}
-                                  >
-                                    <Text numberOfLines={1} style={[s.pillText, { color: "#FFFFFF", fontSize: PILL_FS }]}>
-                                      {t.description}
-                                    </Text>
-                                  </Pressable>
-                                );
-                              }
-                              return (
-                                <Pressable
-                                  key={t.id}
-                                  testID={`cell-tx-${t.id}`}
-                                  onPress={() => setPopup({ type: "tx", data: t })}
-                                  style={[
-                                    s.txPill,
-                                    {
-                                      backgroundColor: theme.surfaceSecondary,
-                                      borderLeftColor: isCredit ? theme.success : theme.info,
-                                    },
-                                  ]}
-                                >
-                                  <Text numberOfLines={1} style={[s.txPillText, { color: theme.onSurfaceSecondary, fontSize: Math.max(8, PILL_FS - 1) }]}>
-                                    {isCredit ? "+" : "−"}${Math.abs(t.amount).toFixed(0)} {t.description}
-                                  </Text>
-                                </Pressable>
-                              );
-                            })}
-                            {overflow > 0 && (
-                              <Text style={[s.moreText, { color: theme.onSurfaceSecondary }]} numberOfLines={1}>
-                                +{overflow} more
-                              </Text>
-                            )}
-                          </View>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
                   <Pressable
                     onPress={() => setExpandedWeek(isExpanded ? null : weekIdx)}
                     style={[s.weekTotalRow, { backgroundColor: weekBarBg, borderTopColor: theme.border, borderBottomColor: theme.border }]}
@@ -399,6 +291,114 @@ export default function CalendarScreen() {
                       )}
                     </View>
                   )}
+                  <View style={s.weekGrid}>
+                    {week.map((d, idx) => {
+                      const k = ymd(d);
+                      const inMonth = d.getMonth() === month.m;
+                      const isSelected = k === selectedDate;
+                      const isToday = k === todayStr;
+                      const dayBills = billsByDate[k] || [];
+                      const dayTxs = txByDate[k] || [];
+                      const visible = dayBills.slice(0, MAX_BILLS);
+                      const txVisible = dayTxs.slice(0, Math.max(1, MAX_BILLS - visible.length));
+                      const overflow = (dayBills.length - visible.length) + (dayTxs.length - txVisible.length);
+                      return (
+                        <Pressable
+                          key={idx}
+                          testID={`calendar-day-${k}`}
+                          style={[
+                            s.cell,
+                            {
+                              height: CELL_HEIGHT,
+                              borderColor: theme.border,
+                              backgroundColor: theme.surface,
+                            },
+                            isSelected && { borderColor: theme.brandPrimary, borderWidth: 1.5, backgroundColor: theme.brandTertiary + "33" },
+                          ]}
+                          onPress={() => setSelectedDate(k)}
+                        >
+                          <View style={s.cellHeader}>
+                            {isToday ? (
+                              <View style={[s.todayCircle, { backgroundColor: theme.brandPrimary }]}>
+                                <Text style={[s.todayNum, { color: theme.onBrandPrimary }]}>{d.getDate()}</Text>
+                              </View>
+                            ) : (
+                              <Text style={[s.dayNum, { color: inMonth ? theme.onSurface : theme.info, fontWeight: d.getDate() === 1 ? "600" : "400" }]}>
+                                {d.getDate() === 1 ? `${MONTHS[d.getMonth()].slice(0, 3)} 1` : String(d.getDate()).padStart(2, "0")}
+                              </Text>
+                            )}
+                          </View>
+                          <View style={s.billsStack}>
+                            {visible.map(b => {
+                              return (
+                                <Pressable
+                                  key={b.id}
+                                  testID={`cell-bill-${b.id}`}
+                                  onPress={() => setPopup({ type: "bill", data: b })}
+                                  style={[
+                                    s.pill,
+                                    {
+                                      backgroundColor: theme.warning,
+                                      opacity: b.paid ? 0.45 : 1,
+                                    },
+                                  ]}
+                                >
+                                  <Text numberOfLines={1} style={[s.pillText, { color: "#FFFFFF", fontSize: PILL_FS, textDecorationLine: b.paid ? "line-through" : "none" }]}>
+                                    ${b.amount.toFixed(0)} {b.title}
+                                  </Text>
+                                </Pressable>
+                              );
+                            })}
+                            {txVisible.map(t => {
+                              const isCredit = t.amount > 0;
+                              const isBillLike = !isCredit && BILL_CATEGORIES.includes(t.category);
+                              if (isBillLike) {
+                                // Render as an orange bill-style pill so visual matches the Bills total
+                                return (
+                                  <Pressable
+                                    key={t.id}
+                                    testID={`cell-tx-${t.id}`}
+                                    onPress={() => setPopup({ type: "tx", data: t })}
+                                    style={[
+                                      s.pill,
+                                      { backgroundColor: theme.warning },
+                                    ]}
+                                  >
+                                    <Text numberOfLines={1} style={[s.pillText, { color: "#FFFFFF", fontSize: PILL_FS }]}>
+                                      ${Math.abs(t.amount).toFixed(0)} {t.description}
+                                    </Text>
+                                  </Pressable>
+                                );
+                              }
+                              return (
+                                <Pressable
+                                  key={t.id}
+                                  testID={`cell-tx-${t.id}`}
+                                  onPress={() => setPopup({ type: "tx", data: t })}
+                                  style={[
+                                    s.txPill,
+                                    {
+                                      backgroundColor: theme.surfaceSecondary,
+                                      borderLeftColor: isCredit ? theme.success : theme.info,
+                                    },
+                                  ]}
+                                >
+                                  <Text numberOfLines={1} style={[s.txPillText, { color: theme.onSurfaceSecondary, fontSize: Math.max(8, PILL_FS - 1) }]}>
+                                    {isCredit ? "+" : "−"}${Math.abs(t.amount).toFixed(0)} {t.description}
+                                  </Text>
+                                </Pressable>
+                              );
+                            })}
+                            {overflow > 0 && (
+                              <Text style={[s.moreText, { color: theme.onSurfaceSecondary }]} numberOfLines={1}>
+                                +{overflow} more
+                              </Text>
+                            )}
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
                 </View>
               );
             })}
