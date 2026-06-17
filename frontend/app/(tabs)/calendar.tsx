@@ -1,10 +1,11 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
 import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useAuth } from "@/src/context/AuthContext";
 import { useTheme, useIsDark, SPACING, RADIUS, CATEGORIES } from "@/src/theme";
+import * as Notifications from "expo-notifications";
 import { api, Bill, BankTransaction } from "@/src/api/client";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -52,6 +53,29 @@ export default function CalendarScreen() {
   }, [token]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  // Past-due bills: not paid AND due_date < today
+  const pastDue = useMemo(() => bills.filter(b => !b.paid && b.due_date < ymd(new Date())), [bills]);
+
+  // On change, schedule a local notification for past-due bills (once per app session)
+  useEffect(() => {
+    if (pastDue.length === 0) return;
+    (async () => {
+      try {
+        const id = "past-due-summary";
+        await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
+        await Notifications.scheduleNotificationAsync({
+          identifier: id,
+          content: {
+            title: `${pastDue.length} bill${pastDue.length === 1 ? "" : "s"} past due`,
+            body: pastDue.slice(0, 3).map(b => `${b.title} — $${b.amount.toFixed(0)}`).join(" · "),
+            data: { kind: "past-due" },
+          },
+          trigger: null as any,
+        });
+      } catch {}
+    })();
+  }, [pastDue.length]);
 
   // Build the month grid including leading/trailing days from sibling months
   const month = useMemo(() => {
@@ -184,6 +208,21 @@ export default function CalendarScreen() {
             <Ionicons name="add" size={16} color={theme.onSurface} />
           </Pressable>
         </View>
+      </View>
+
+      <View style={s.viewToggle}>
+        {pastDue.length > 0 && (
+          <Pressable
+            testID="past-due-banner"
+            onPress={() => setPopup({ type: "bill", data: pastDue[0] })}
+            style={[s.pastDueBanner, { backgroundColor: theme.error }]}
+          >
+            <Ionicons name="alert-circle" size={16} color="#FFFFFF" />
+            <Text style={s.pastDueText} numberOfLines={1}>
+              {pastDue.length} bill{pastDue.length === 1 ? "" : "s"} past due — ${pastDue.reduce((s, b) => s + b.amount, 0).toFixed(0)}
+            </Text>
+          </Pressable>
+        )}
       </View>
 
       {loading ? <ActivityIndicator color={theme.brandPrimary} style={{ marginTop: 24 }} /> : (
@@ -320,6 +359,7 @@ export default function CalendarScreen() {
                           </View>
                           <View style={s.billsStack}>
                             {visible.map(b => {
+                              const isPastDue = !b.paid && b.due_date < todayStr;
                               return (
                                 <Pressable
                                   key={b.id}
@@ -328,7 +368,7 @@ export default function CalendarScreen() {
                                   style={[
                                     s.pill,
                                     {
-                                      backgroundColor: theme.warning,
+                                      backgroundColor: isPastDue ? theme.error : theme.warning,
                                       opacity: b.paid ? 0.45 : 1,
                                     },
                                   ]}
@@ -492,6 +532,9 @@ const s = StyleSheet.create({
   },
   detailHeader: { fontSize: 11, fontWeight: "500", letterSpacing: 0.5, marginBottom: 4 },
   detailRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 4 },
+  viewToggle: { paddingHorizontal: SPACING.lg },
+  pastDueBanner: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, marginBottom: SPACING.sm },
+  pastDueText: { color: "#FFFFFF", fontSize: 13, fontWeight: "500", flex: 1 },
   cell: {
     width: `${100 / 7}%`,
     borderRightWidth: 0.5,
