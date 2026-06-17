@@ -223,14 +223,8 @@ export default function CalendarScreen() {
                 });
                 (txByDate[k] || []).forEach(t => {
                   if (t.amount < 0) {
-                    const amt = Math.abs(t.amount);
-                    if (BILL_CATEGORIES.includes(t.category)) {
-                      billsTotal += amt;
-                      weekBills.push({ ...t, isTransaction: true } as any);
-                    } else {
-                      txTotal += amt;
-                      weekTxs.push(t);
-                    }
+                    txTotal += Math.abs(t.amount);
+                    weekTxs.push(t);
                   }
                 });
               });
