@@ -39,6 +39,7 @@ export default function CalendarScreen() {
   const [cursor, setCursor] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(ymd(new Date()));
   const [zoom, setZoom] = useState(-1); // -2..+2, default -1 (zoomed in one step from min)
+  const [expandedWeek, setExpandedWeek] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -209,12 +210,19 @@ export default function CalendarScreen() {
               // Calculate week totals: unpaid bills + expense transactions (above threshold)
               let billsTotal = 0;
               let txTotal = 0;
+              const weekBills: typeof bills = [];
+              const weekTxs: typeof transactions = [];
               week.forEach(d => {
                 const k = ymd(d);
-                (billsByDate[k] || []).forEach(b => { if (!b.paid) billsTotal += b.amount; });
-                (txByDate[k] || []).forEach(t => { if (t.amount < 0) txTotal += Math.abs(t.amount); });
+                (billsByDate[k] || []).forEach(b => {
+                  if (!b.paid) { billsTotal += b.amount; weekBills.push(b); }
+                });
+                (txByDate[k] || []).forEach(t => {
+                  if (t.amount < 0) { txTotal += Math.abs(t.amount); weekTxs.push(t); }
+                });
               });
               const weekTotal = billsTotal + txTotal;
+              const isExpanded = expandedWeek === weekIdx;
               return (
                 <View key={`week-${weekIdx}`}>
                   <View style={s.weekGrid}>
@@ -306,7 +314,11 @@ export default function CalendarScreen() {
                       );
                     })}
                   </View>
-                  <View style={[s.weekTotalRow, { backgroundColor: weekBarBg, borderTopColor: theme.border, borderBottomColor: theme.border }]} testID={`week-total-${weekIdx}`}>
+                  <Pressable
+                    onPress={() => setExpandedWeek(isExpanded ? null : weekIdx)}
+                    style={[s.weekTotalRow, { backgroundColor: weekBarBg, borderTopColor: theme.border, borderBottomColor: theme.border }]}
+                    testID={`week-total-${weekIdx}`}
+                  >
                     <Text style={[s.weekTotalLabel, { color: theme.onSurfaceSecondary }]}>
                       Week of {week[0].toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                     </Text>
@@ -320,8 +332,41 @@ export default function CalendarScreen() {
                       <Text style={{ color: theme.onSurface, fontSize: 13, fontWeight: "600" }}>
                         = ${weekTotal.toFixed(0)}
                       </Text>
+                      <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={14} color={theme.onSurfaceSecondary} />
                     </View>
-                  </View>
+                  </Pressable>
+                  {isExpanded && (
+                    <View style={[s.weekDetails, { backgroundColor: theme.surfaceSecondary, borderBottomColor: theme.border }]} testID={`week-details-${weekIdx}`}>
+                      {weekBills.length === 0 && weekTxs.length === 0 ? (
+                        <Text style={{ color: theme.info, fontSize: 13, paddingVertical: 4 }}>No bills or transactions this week.</Text>
+                      ) : (
+                        <>
+                          {weekBills.length > 0 && (
+                            <Text style={[s.detailHeader, { color: theme.warning }]}>BILLS DUE</Text>
+                          )}
+                          {weekBills.map(b => (
+                            <Pressable
+                              key={`wb-${b.id}-${weekIdx}`}
+                              onPress={() => router.push(`/bill/${b.id}`)}
+                              style={s.detailRow}
+                            >
+                              <Text style={{ color: theme.onSurface, fontSize: 13, flex: 1 }} numberOfLines={1}>{b.title}</Text>
+                              <Text style={{ color: theme.onSurface, fontSize: 13, fontWeight: "500" }}>${b.amount.toFixed(2)}</Text>
+                            </Pressable>
+                          ))}
+                          {weekTxs.length > 0 && (
+                            <Text style={[s.detailHeader, { color: theme.onSurfaceSecondary, marginTop: weekBills.length > 0 ? 8 : 0 }]}>EXPENSES PAID</Text>
+                          )}
+                          {weekTxs.map(t => (
+                            <View key={`wt-${t.id}-${weekIdx}`} style={s.detailRow}>
+                              <Text style={{ color: theme.onSurfaceSecondary, fontSize: 13, flex: 1 }} numberOfLines={1}>{t.description}</Text>
+                              <Text style={{ color: theme.onSurfaceSecondary, fontSize: 13 }}>−${Math.abs(t.amount).toFixed(2)}</Text>
+                            </View>
+                          ))}
+                        </>
+                      )}
+                    </View>
+                  )}
                 </View>
               );
             })}
@@ -368,6 +413,13 @@ const s = StyleSheet.create({
     borderBottomWidth: 0.5,
   },
   weekTotalLabel: { fontSize: 11, fontWeight: "500", letterSpacing: 0.3, textTransform: "uppercase" },
+  weekDetails: {
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    borderBottomWidth: 0.5,
+  },
+  detailHeader: { fontSize: 11, fontWeight: "500", letterSpacing: 0.5, marginBottom: 4 },
+  detailRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 4 },
   cell: {
     width: `${100 / 7}%`,
     borderRightWidth: 0.5,
