@@ -208,11 +208,15 @@ export default function CalendarScreen() {
                 (billsByDate[k] || []).forEach(b => {
                   if (!b.paid) { billsTotal += b.amount; weekBills.push(b); }
                 });
-                (txByDate[k] || []).forEach(t => {
+                // Spent uses the unfiltered map so matched transactions still count toward outflow
+                (txByDateForTotal[k] || []).forEach(t => {
                   if (t.amount < 0) {
                     txTotal += Math.abs(t.amount);
-                    weekTxs.push(t);
                   }
+                });
+                // For the expanded breakdown, only show visible (unmatched) transactions
+                (txByDate[k] || []).forEach(t => {
+                  if (t.amount < 0) weekTxs.push(t);
                 });
               });
               const weekTotal = billsTotal + txTotal;
