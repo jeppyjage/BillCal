@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, RefreshControl } from "react-native";
+import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
@@ -40,6 +40,7 @@ export default function CalendarScreen() {
   const [selectedDate, setSelectedDate] = useState(ymd(new Date()));
   const [zoom, setZoom] = useState(-1); // -2..+2, default -1 (zoomed in one step from min)
   const [expandedWeek, setExpandedWeek] = useState<number | null>(null);
+  const [popup, setPopup] = useState<{ type: "bill"; data: Bill } | { type: "tx"; data: BankTransaction } | null>(null);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -268,7 +269,7 @@ export default function CalendarScreen() {
                                 <Pressable
                                   key={b.id}
                                   testID={`cell-bill-${b.id}`}
-                                  onPress={() => router.push(`/bill/${b.id}`)}
+                                  onPress={() => setPopup({ type: "bill", data: b })}
                                   style={[
                                     s.pill,
                                     {
@@ -289,7 +290,7 @@ export default function CalendarScreen() {
                                 <Pressable
                                   key={t.id}
                                   testID={`cell-tx-${t.id}`}
-                                  onPress={() => router.push("/(tabs)/bank")}
+                                  onPress={() => setPopup({ type: "tx", data: t })}
                                   style={[
                                     s.txPill,
                                     {
@@ -381,6 +382,56 @@ export default function CalendarScreen() {
       >
         <Ionicons name="add" size={28} color={theme.onBrandPrimary} />
       </Pressable>
+
+      <Modal visible={!!popup} transparent animationType="fade" onRequestClose={() => setPopup(null)}>
+        <Pressable style={s.modalBackdrop} onPress={() => setPopup(null)}>
+          <Pressable style={[s.modalCard, { backgroundColor: theme.surfaceSecondary, borderColor: theme.border }]} onPress={(e) => e.stopPropagation?.()}>
+            {popup?.type === "bill" && (
+              <>
+                <View style={s.modalHeader}>
+                  <View style={[s.modalIcon, { backgroundColor: theme.warning + "33" }]}>
+                    <Ionicons name="receipt" size={22} color={theme.warning} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.modalTitle, { color: theme.onSurface }]} numberOfLines={1}>{popup.data.title}</Text>
+                    <Text style={{ color: theme.onSurfaceSecondary, fontSize: 12 }}>Bill · {popup.data.category}</Text>
+                  </View>
+                  <Pressable onPress={() => setPopup(null)} testID="popup-close"><Ionicons name="close" size={22} color={theme.onSurfaceSecondary} /></Pressable>
+                </View>
+                <View style={s.modalDetailGrid}>
+                  <View style={s.modalRow}><Text style={[s.modalLabel, { color: theme.onSurfaceSecondary }]}>Amount</Text><Text style={[s.modalValue, { color: theme.onSurface, fontSize: 18 }]}>${popup.data.amount.toFixed(2)}</Text></View>
+                  <View style={s.modalRow}><Text style={[s.modalLabel, { color: theme.onSurfaceSecondary }]}>Due</Text><Text style={[s.modalValue, { color: theme.onSurface }]}>{new Date(popup.data.due_date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}</Text></View>
+                  <View style={s.modalRow}><Text style={[s.modalLabel, { color: theme.onSurfaceSecondary }]}>Repeats</Text><Text style={[s.modalValue, { color: theme.onSurface, textTransform: "capitalize" }]}>{popup.data.recurrence}</Text></View>
+                  <View style={s.modalRow}><Text style={[s.modalLabel, { color: theme.onSurfaceSecondary }]}>Status</Text><Text style={[s.modalValue, { color: popup.data.paid ? theme.success : theme.warning, fontWeight: "500" }]}>{popup.data.paid ? "Paid" : "Unpaid"}</Text></View>
+                  {popup.data.notes ? <View style={s.modalRow}><Text style={[s.modalLabel, { color: theme.onSurfaceSecondary }]}>Notes</Text><Text style={[s.modalValue, { color: theme.onSurface, flex: 1, textAlign: "right" }]} numberOfLines={3}>{popup.data.notes}</Text></View> : null}
+                </View>
+                <Pressable testID="popup-edit-bill" onPress={() => { const id = (popup as any).data.id; setPopup(null); router.push(`/bill/${id}`); }} style={[s.modalEditBtn, { backgroundColor: theme.brandPrimary }]}>
+                  <Ionicons name="create-outline" size={16} color={theme.onBrandPrimary} />
+                  <Text style={{ color: theme.onBrandPrimary, fontSize: 14, fontWeight: "500" }}>Edit Bill</Text>
+                </Pressable>
+              </>
+            )}
+            {popup?.type === "tx" && (
+              <>
+                <View style={s.modalHeader}>
+                  <View style={[s.modalIcon, { backgroundColor: (popup.data.amount > 0 ? theme.success : theme.info) + "33" }]}>
+                    <Ionicons name={popup.data.amount > 0 ? "arrow-down" : "arrow-up"} size={22} color={popup.data.amount > 0 ? theme.success : theme.info} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.modalTitle, { color: theme.onSurface }]} numberOfLines={1}>{popup.data.description}</Text>
+                    <Text style={{ color: theme.onSurfaceSecondary, fontSize: 12 }}>Transaction · {popup.data.category}</Text>
+                  </View>
+                  <Pressable onPress={() => setPopup(null)}><Ionicons name="close" size={22} color={theme.onSurfaceSecondary} /></Pressable>
+                </View>
+                <View style={s.modalDetailGrid}>
+                  <View style={s.modalRow}><Text style={[s.modalLabel, { color: theme.onSurfaceSecondary }]}>Amount</Text><Text style={[s.modalValue, { color: popup.data.amount > 0 ? theme.success : theme.onSurface, fontSize: 18, fontWeight: "500" }]}>{popup.data.amount > 0 ? "+" : "−"}${Math.abs(popup.data.amount).toFixed(2)}</Text></View>
+                  <View style={s.modalRow}><Text style={[s.modalLabel, { color: theme.onSurfaceSecondary }]}>Date</Text><Text style={[s.modalValue, { color: theme.onSurface }]}>{new Date(popup.data.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}</Text></View>
+                </View>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -454,4 +505,14 @@ const s = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
     shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 6,
   },
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center", padding: SPACING.lg },
+  modalCard: { width: "100%", maxWidth: 420, borderRadius: RADIUS.lg, borderWidth: 1, padding: SPACING.lg },
+  modalHeader: { flexDirection: "row", alignItems: "center", gap: SPACING.md, marginBottom: SPACING.lg },
+  modalIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  modalTitle: { fontSize: 17, fontWeight: "500" },
+  modalDetailGrid: { gap: SPACING.sm },
+  modalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 4 },
+  modalLabel: { fontSize: 12, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: "500" },
+  modalValue: { fontSize: 14 },
+  modalEditBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: SPACING.lg, paddingVertical: 12, borderRadius: RADIUS.md, minHeight: 44 },
 });
