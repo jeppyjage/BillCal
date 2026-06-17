@@ -121,7 +121,7 @@ export default function CalendarScreen() {
     const map: Record<string, BankTransaction[]> = {};
     transactions.forEach(t => {
       // Only show "important" transactions: |amount| >= $25 (filter out coffees, etc.)
-      if (Math.abs(t.amount) < 25) return;
+      if (Math.abs(t.amount) < 20) return;
       if (!map[t.date]) map[t.date] = [];
       map[t.date].push(t);
     });
@@ -254,7 +254,6 @@ export default function CalendarScreen() {
                           </View>
                           <View style={s.billsStack}>
                             {visible.map(b => {
-                              const accent = CAT_COLORS[b.category] || CAT_COLORS.Other;
                               return (
                                 <Pressable
                                   key={b.id}
@@ -263,7 +262,7 @@ export default function CalendarScreen() {
                                   style={[
                                     s.pill,
                                     {
-                                      backgroundColor: accent,
+                                      backgroundColor: theme.warning,
                                       opacity: b.paid ? 0.45 : 1,
                                     },
                                   ]}
