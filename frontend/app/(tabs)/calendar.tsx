@@ -208,6 +208,12 @@ export default function CalendarScreen() {
                 (billsByDate[k] || []).forEach(b => {
                   billsTotal += b.amount; weekBills.push(b);
                 });
+                // Bills total ALSO includes bill-category transactions (Rent, Utilities, etc.)
+                (txByDateForTotal[k] || []).forEach(t => {
+                  if (t.amount < 0 && BILL_CATEGORIES.includes(t.category)) {
+                    billsTotal += Math.abs(t.amount);
+                  }
+                });
                 // Spent uses the unfiltered map so matched transactions still count toward outflow
                 (txByDateForTotal[k] || []).forEach(t => {
                   if (t.amount < 0) {
