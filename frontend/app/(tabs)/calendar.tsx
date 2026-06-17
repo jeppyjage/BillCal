@@ -4,7 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useAuth } from "@/src/context/AuthContext";
-import { useTheme, SPACING, RADIUS, CATEGORIES } from "@/src/theme";
+import { useTheme, useIsDark, SPACING, RADIUS, CATEGORIES } from "@/src/theme";
 import { api, Bill, BankTransaction } from "@/src/api/client";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -29,6 +29,8 @@ const CAT_COLORS: Record<string, string> = {
 
 export default function CalendarScreen() {
   const theme = useTheme();
+  const isDark = useIsDark();
+  const weekBarBg = isDark ? "#06080F" : theme.borderStrong;
   const { token } = useAuth();
   const [bills, setBills] = useState<Bill[]>([]);
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
@@ -304,7 +306,7 @@ export default function CalendarScreen() {
                       );
                     })}
                   </View>
-                  <View style={[s.weekTotalRow, { backgroundColor: theme.borderStrong, borderTopColor: theme.border, borderBottomColor: theme.border }]} testID={`week-total-${weekIdx}`}>
+                  <View style={[s.weekTotalRow, { backgroundColor: weekBarBg, borderTopColor: theme.border, borderBottomColor: theme.border }]} testID={`week-total-${weekIdx}`}>
                     <Text style={[s.weekTotalLabel, { color: theme.onSurfaceSecondary }]}>
                       Week of {week[0].toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                     </Text>
