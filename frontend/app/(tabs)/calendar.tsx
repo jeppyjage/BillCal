@@ -311,16 +311,12 @@ export default function CalendarScreen() {
                       Week of {week[0].toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                     </Text>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                      {billsTotal > 0 && (
-                        <Text style={{ color: theme.warning, fontSize: 12, fontWeight: "500" }}>
-                          Bills ${billsTotal.toFixed(0)}
-                        </Text>
-                      )}
-                      {txTotal > 0 && (
-                        <Text style={{ color: theme.onSurfaceSecondary, fontSize: 12 }}>
-                          Spent ${txTotal.toFixed(0)}
-                        </Text>
-                      )}
+                      <Text style={{ color: theme.warning, fontSize: 12, fontWeight: "500" }}>
+                        Bills ${billsTotal.toFixed(0)}
+                      </Text>
+                      <Text style={{ color: theme.onSurfaceSecondary, fontSize: 12 }}>
+                        Spent ${txTotal.toFixed(0)}
+                      </Text>
                       <Text style={{ color: theme.onSurface, fontSize: 13, fontWeight: "600" }}>
                         = ${weekTotal.toFixed(0)}
                       </Text>
