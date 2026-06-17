@@ -298,6 +298,25 @@ export default function CalendarScreen() {
                             })}
                             {txVisible.map(t => {
                               const isCredit = t.amount > 0;
+                              const isBillLike = !isCredit && BILL_CATEGORIES.includes(t.category);
+                              if (isBillLike) {
+                                // Render as an orange bill-style pill so visual matches the Bills total
+                                return (
+                                  <Pressable
+                                    key={t.id}
+                                    testID={`cell-tx-${t.id}`}
+                                    onPress={() => setPopup({ type: "tx", data: t })}
+                                    style={[
+                                      s.pill,
+                                      { backgroundColor: theme.warning },
+                                    ]}
+                                  >
+                                    <Text numberOfLines={1} style={[s.pillText, { color: "#FFFFFF", fontSize: PILL_FS }]}>
+                                      {t.description}
+                                    </Text>
+                                  </Pressable>
+                                );
+                              }
                               return (
                                 <Pressable
                                   key={t.id}
