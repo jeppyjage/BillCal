@@ -252,6 +252,44 @@ async def toggle_paid(bill_id: str, current_user: dict = Depends(get_current_use
     return Bill(**doc)
 
 
+@api_router.post("/bills/seed_examples", response_model=List[Bill])
+async def seed_example_bills(current_user: dict = Depends(get_current_user)):
+    """Create a starter set of example bills for the current user, relative to today."""
+    today = datetime.now(timezone.utc).date()
+    def offset(days: int) -> str:
+        return (today + timedelta(days=days)).isoformat()
+    examples = [
+        {"title": "Electricity Bill",   "amount":   84.50, "due_date": offset(3),   "category": "Utilities",     "recurrence": "monthly"},
+        {"title": "Internet",           "amount":   59.00, "due_date": offset(3),   "category": "Internet",      "recurrence": "monthly"},
+        {"title": "Phone Plan",         "amount":   45.00, "due_date": offset(-7),  "category": "Phone",         "recurrence": "monthly"},
+        {"title": "Netflix",            "amount":   15.49, "due_date": offset(10),  "category": "Subscriptions", "recurrence": "monthly"},
+        {"title": "Car Insurance",      "amount":  120.00, "due_date": offset(10),  "category": "Insurance",     "recurrence": "monthly"},
+        {"title": "Apartment Rent",     "amount": 1450.00, "due_date": offset(18),  "category": "Rent",          "recurrence": "monthly"},
+        {"title": "Visa Credit Card",   "amount":  342.75, "due_date": offset(25),  "category": "Credit Card",   "recurrence": "monthly"},
+    ]
+    created: List[Bill] = []
+    for e in examples:
+        doc = {
+            "id": str(uuid.uuid4()),
+            "user_id": current_user["id"],
+            "title": e["title"],
+            "amount": float(e["amount"]),
+            "due_date": e["due_date"],
+            "category": e["category"],
+            "recurrence": e["recurrence"],
+            "notes": "",
+            "paid": e["title"] == "Phone Plan",  # mark Phone Plan paid as a demo
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.bills.insert_one(doc)
+        created.append(Bill(**{k: v for k, v in doc.items() if k != "_id"}))
+    # Also seed mock bank if the user has none yet
+    has_accounts = await db.bank_accounts.count_documents({"user_id": current_user["id"]})
+    if has_accounts == 0:
+        await seed_mock_bank_for_user(current_user["id"])
+    return created
+
+
 # ---------- Mock Bank Sync ----------
 MOCK_BANKS = [
     {"name": "Everyday Checking", "type": "checking", "masked_number": "****4521", "balance": 3284.55, "institution": "Greenleaf Bank"},

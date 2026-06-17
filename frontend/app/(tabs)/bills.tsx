@@ -115,7 +115,21 @@ export default function BillsScreen() {
             <View style={s.empty}>
               <Ionicons name="receipt-outline" size={64} color={theme.info} />
               <Text style={[s.emptyTitle, { color: theme.onSurface }]}>No bills yet</Text>
-              <Text style={[s.emptySub, { color: theme.onSurfaceSecondary }]}>Tap + to add your first bill</Text>
+              <Text style={[s.emptySub, { color: theme.onSurfaceSecondary }]}>Tap + to add your first bill, or load examples to explore.</Text>
+              <Pressable
+                testID="seed-examples-btn"
+                onPress={async () => {
+                  if (!token) return;
+                  try {
+                    await api.seedExamples(token);
+                    await load();
+                  } catch {}
+                }}
+                style={[s.seedBtn, { backgroundColor: theme.brandPrimary }]}
+              >
+                <Ionicons name="sparkles" size={16} color={theme.onBrandPrimary} />
+                <Text style={{ color: theme.onBrandPrimary, fontSize: 14, fontWeight: "500" }}>Load example bills</Text>
+              </Pressable>
             </View>
           )
         }
@@ -187,6 +201,7 @@ const s = StyleSheet.create({
   payTag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, marginTop: 4 },
   empty: { alignItems: "center", padding: SPACING.xxxl },
   emptyTitle: { fontSize: 17, fontWeight: "500", marginTop: SPACING.md },
-  emptySub: { fontSize: 13, marginTop: 4 },
+  emptySub: { fontSize: 13, marginTop: 4, textAlign: "center", paddingHorizontal: 24 },
+  seedBtn: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: SPACING.xl, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 12, minHeight: 44 },
   fab: { position: "absolute", right: SPACING.lg, bottom: 24, width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 6 },
 });

@@ -57,6 +57,8 @@ export const api = {
     request<{ ok: boolean }>(`/bills/${id}`, token, { method: "DELETE" }),
   togglePaid: (token: string, id: string) =>
     request<Bill>(`/bills/${id}/toggle_paid`, token, { method: "POST" }),
+  seedExamples: (token: string) =>
+    request<Bill[]>("/bills/seed_examples", token, { method: "POST" }),
   listAccounts: (token: string) => request<BankAccount[]>("/bank/accounts", token),
   listTransactions: (token: string) => request<BankTransaction[]>("/bank/transactions", token),
   syncBank: (token: string) =>
