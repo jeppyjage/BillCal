@@ -65,4 +65,20 @@ export const api = {
   listTransactions: (token: string) => request<BankTransaction[]>("/bank/transactions", token),
   syncBank: (token: string) =>
     request<{ ok: boolean; last_synced: string; transactions_synced: number }>("/bank/sync", token, { method: "POST" }),
+  calendarStatus: (token: string) =>
+    request<{
+      google: { connected: boolean; connected_at: string | null; configured: boolean };
+      microsoft: { connected: boolean; connected_at: string | null; configured: boolean };
+    }>("/calendar/status", token),
+  calendarDisconnect: (token: string, provider: "google" | "microsoft") =>
+    request<{ ok: boolean }>(`/calendar/disconnect/${provider}`, token, { method: "POST" }),
+  calendarSyncAll: (token: string) =>
+    request<{ ok: boolean; scheduled: number; google: boolean; microsoft: boolean }>(
+      "/calendar/sync_all",
+      token,
+      { method: "POST" }
+    ),
 };
+
+export const oauthUrl = (provider: "google" | "microsoft", token: string) =>
+  `${API_BASE}/api/oauth/${provider}/start?token=${encodeURIComponent(token)}`;

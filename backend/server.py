@@ -1,4 +1,5 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, Query, BackgroundTasks, Request
+from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -8,10 +9,12 @@ import logging
 import uuid
 import bcrypt
 import jwt
+import httpx
+from urllib.parse import urlencode
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr
-from typing import List, Optional
-from datetime import datetime, timedelta, timezone
+from typing import List, Optional, Literal
+from datetime import datetime, timedelta, timezone, date
 
 
 ROOT_DIR = Path(__file__).parent
@@ -26,6 +29,36 @@ db = client[os.environ['DB_NAME']]
 JWT_SECRET = os.environ.get('JWT_SECRET', 'billcal-dev-secret-change-in-prod-32chars')
 JWT_ALG = 'HS256'
 JWT_EXP_DAYS = 30
+
+# ---------- OAuth / External Calendar Config ----------
+BACKEND_BASE_URL = os.environ.get("BACKEND_BASE_URL", "").rstrip("/")
+# Public success page redirect (deep link back to the app on success)
+OAUTH_SUCCESS_REDIRECT = os.environ.get("OAUTH_SUCCESS_REDIRECT", "")
+
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
+GOOGLE_CALENDAR_API_BASE = "https://www.googleapis.com/calendar/v3"
+GOOGLE_SCOPES = [
+    "openid",
+    "email",
+    "https://www.googleapis.com/auth/calendar.events",
+]
+
+MS_CLIENT_ID = os.environ.get("MS_CLIENT_ID", "")
+MS_CLIENT_SECRET = os.environ.get("MS_CLIENT_SECRET", "")
+MS_TENANT_ID = os.environ.get("MS_TENANT_ID", "common")
+MS_AUTH_ENDPOINT = f"https://login.microsoftonline.com/{MS_TENANT_ID}/oauth2/v2.0/authorize"
+MS_TOKEN_ENDPOINT = f"https://login.microsoftonline.com/{MS_TENANT_ID}/oauth2/v2.0/token"
+MS_GRAPH_BASE = "https://graph.microsoft.com/v1.0"
+MS_SCOPES = [
+    "openid",
+    "profile",
+    "email",
+    "offline_access",
+    "https://graph.microsoft.com/Calendars.ReadWrite",
+]
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -83,6 +116,8 @@ class Bill(BillBase):
     user_id: str
     paid: bool = False
     created_at: str
+    google_event_id: Optional[str] = None
+    microsoft_event_id: Optional[str] = None
 
 
 class BankAccount(BaseModel):
@@ -191,7 +226,7 @@ async def list_bills(current_user: dict = Depends(get_current_user)):
 
 
 @api_router.post("/bills", response_model=Bill)
-async def create_bill(payload: BillCreate, current_user: dict = Depends(get_current_user)):
+async def create_bill(payload: BillCreate, background: BackgroundTasks, current_user: dict = Depends(get_current_user)):
     bill_id = str(uuid.uuid4())
     doc = {
         "id": bill_id,
@@ -206,6 +241,7 @@ async def create_bill(payload: BillCreate, current_user: dict = Depends(get_curr
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.bills.insert_one(doc)
+    background.add_task(_sync_bill_create, current_user["id"], bill_id)
     return Bill(**{k: v for k, v in doc.items() if k != "_id"})
 
 
@@ -218,7 +254,7 @@ async def get_bill(bill_id: str, current_user: dict = Depends(get_current_user))
 
 
 @api_router.put("/bills/{bill_id}", response_model=Bill)
-async def update_bill(bill_id: str, payload: BillUpdate, current_user: dict = Depends(get_current_user)):
+async def update_bill(bill_id: str, payload: BillUpdate, background: BackgroundTasks, current_user: dict = Depends(get_current_user)):
     updates = {k: v for k, v in payload.dict().items() if v is not None}
     if not updates:
         raise HTTPException(status_code=400, detail="No updates provided")
@@ -230,25 +266,29 @@ async def update_bill(bill_id: str, payload: BillUpdate, current_user: dict = De
     )
     if not result:
         raise HTTPException(status_code=404, detail="Bill not found")
+    background.add_task(_sync_bill_update, current_user["id"], bill_id)
     return Bill(**result)
 
 
 @api_router.delete("/bills/{bill_id}")
-async def delete_bill(bill_id: str, current_user: dict = Depends(get_current_user)):
-    r = await db.bills.delete_one({"id": bill_id, "user_id": current_user["id"]})
-    if r.deleted_count == 0:
+async def delete_bill(bill_id: str, background: BackgroundTasks, current_user: dict = Depends(get_current_user)):
+    doc = await db.bills.find_one({"id": bill_id, "user_id": current_user["id"]}, {"_id": 0})
+    if not doc:
         raise HTTPException(status_code=404, detail="Bill not found")
+    await db.bills.delete_one({"id": bill_id, "user_id": current_user["id"]})
+    background.add_task(_sync_bill_delete, current_user["id"], doc)
     return {"ok": True}
 
 
 @api_router.post("/bills/{bill_id}/toggle_paid", response_model=Bill)
-async def toggle_paid(bill_id: str, current_user: dict = Depends(get_current_user)):
+async def toggle_paid(bill_id: str, background: BackgroundTasks, current_user: dict = Depends(get_current_user)):
     doc = await db.bills.find_one({"id": bill_id, "user_id": current_user["id"]}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Bill not found")
     new_paid = not doc.get("paid", False)
     await db.bills.update_one({"id": bill_id, "user_id": current_user["id"]}, {"$set": {"paid": new_paid}})
     doc["paid"] = new_paid
+    background.add_task(_sync_bill_update, current_user["id"], bill_id)
     return Bill(**doc)
 
 
@@ -352,6 +392,539 @@ async def auto_detect_recurring(current_user: dict = Depends(get_current_user)):
             await db.bills.insert_one(doc)
             result.append(Bill(**{k: v for k, v in doc.items() if k != "_id"}))
     return result
+
+
+# ---------- External Calendar Sync (Google + Microsoft Outlook) ----------
+# Token storage in `calendar_tokens` collection keyed by (user_id, provider).
+# Each doc: {user_id, provider, access_token, refresh_token, expires_at, scope, default_calendar_id}
+
+OAUTH_STATE_SECRET = JWT_SECRET  # reuse JWT secret for OAuth state signing
+OAUTH_STATE_EXP_MINUTES = 15
+
+
+def _sign_oauth_state(user_id: str, provider: str) -> str:
+    payload = {
+        "uid": user_id,
+        "p": provider,
+        "n": uuid.uuid4().hex,
+        "iat": datetime.now(timezone.utc),
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=OAUTH_STATE_EXP_MINUTES),
+    }
+    return jwt.encode(payload, OAUTH_STATE_SECRET, algorithm=JWT_ALG)
+
+
+def _verify_oauth_state(state: str, provider: str) -> Optional[str]:
+    try:
+        data = jwt.decode(state, OAUTH_STATE_SECRET, algorithms=[JWT_ALG])
+        if data.get("p") != provider:
+            return None
+        return data.get("uid")
+    except Exception:
+        return None
+
+
+async def _get_user_from_query_token(token: str) -> dict:
+    """Resolve a user from a query-string JWT (used when starting OAuth from browser)."""
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG])
+        user_id = payload.get("sub")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    user = await db.users.find_one({"id": user_id}, {"_id": 0, "password_hash": 0})
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    return user
+
+
+def _resolve_backend_base_url(request) -> str:
+    if BACKEND_BASE_URL:
+        return BACKEND_BASE_URL
+    # Build from request (works behind the ingress)
+    scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+    return f"{scheme}://{host}"
+
+
+def _google_redirect_uri(request) -> str:
+    return f"{_resolve_backend_base_url(request)}/api/oauth/google/callback"
+
+
+def _ms_redirect_uri(request) -> str:
+    return f"{_resolve_backend_base_url(request)}/api/oauth/microsoft/callback"
+
+
+async def _upsert_calendar_token(user_id: str, provider: str, data: dict):
+    await db.calendar_tokens.update_one(
+        {"user_id": user_id, "provider": provider},
+        {"$set": {**data, "user_id": user_id, "provider": provider}},
+        upsert=True,
+    )
+
+
+async def _get_calendar_token(user_id: str, provider: str) -> Optional[dict]:
+    doc = await db.calendar_tokens.find_one({"user_id": user_id, "provider": provider}, {"_id": 0})
+    return doc
+
+
+def _success_html(provider: str, ok: bool, msg: str = "") -> HTMLResponse:
+    title = "Connected!" if ok else "Connection failed"
+    color = "#16a34a" if ok else "#dc2626"
+    detail = msg or ("Your calendar is now linked. Return to the BillCal app to start syncing." if ok else "Please try again from the app.")
+    html = f"""<!doctype html><html><head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <title>BillCal — {provider.capitalize()}</title>
+    <style>body{{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;display:flex;align-items:center;justify-content:center;height:100vh;padding:24px}}
+    .card{{background:#1e293b;border-radius:16px;padding:32px;max-width:380px;text-align:center;border:1px solid #334155}}
+    .badge{{width:64px;height:64px;border-radius:32px;background:{color};display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px;font-size:32px;color:#fff}}
+    h1{{margin:0 0 8px;font-size:20px;font-weight:500}}p{{margin:0 0 16px;color:#94a3b8;font-size:14px;line-height:1.5}}
+    button{{background:#3b82f6;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:14px;cursor:pointer}}</style></head>
+    <body><div class="card"><div class="badge">{'✓' if ok else '!'}</div><h1>{title}</h1><p>{detail}</p>
+    <button onclick="window.close()">Close</button></div></body></html>"""
+    return HTMLResponse(content=html)
+
+
+# ---- Token refresh helpers ----
+async def _refresh_google_token(token: dict) -> dict:
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        raise HTTPException(status_code=400, detail="Google not configured")
+    async with httpx.AsyncClient(timeout=20.0) as client_:
+        resp = await client_.post(
+            GOOGLE_TOKEN_ENDPOINT,
+            data={
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "refresh_token": token["refresh_token"],
+                "grant_type": "refresh_token",
+            },
+        )
+    if resp.status_code != 200:
+        raise HTTPException(status_code=400, detail=f"Google token refresh failed: {resp.text}")
+    data = resp.json()
+    expires_at = (datetime.now(timezone.utc) + timedelta(seconds=int(data.get("expires_in", 3600)))).isoformat()
+    update = {"access_token": data["access_token"], "expires_at": expires_at}
+    if data.get("refresh_token"):
+        update["refresh_token"] = data["refresh_token"]
+    await _upsert_calendar_token(token["user_id"], "google", update)
+    return {**token, **update}
+
+
+async def _refresh_ms_token(token: dict) -> dict:
+    if not MS_CLIENT_ID or not MS_CLIENT_SECRET:
+        raise HTTPException(status_code=400, detail="Microsoft not configured")
+    async with httpx.AsyncClient(timeout=20.0) as client_:
+        resp = await client_.post(
+            MS_TOKEN_ENDPOINT,
+            data={
+                "client_id": MS_CLIENT_ID,
+                "client_secret": MS_CLIENT_SECRET,
+                "refresh_token": token["refresh_token"],
+                "grant_type": "refresh_token",
+                "scope": " ".join(MS_SCOPES),
+            },
+        )
+    if resp.status_code != 200:
+        raise HTTPException(status_code=400, detail=f"Microsoft token refresh failed: {resp.text}")
+    data = resp.json()
+    expires_at = (datetime.now(timezone.utc) + timedelta(seconds=int(data.get("expires_in", 3600)))).isoformat()
+    update = {"access_token": data["access_token"], "expires_at": expires_at}
+    if data.get("refresh_token"):
+        update["refresh_token"] = data["refresh_token"]
+    await _upsert_calendar_token(token["user_id"], "microsoft", update)
+    return {**token, **update}
+
+
+async def _get_valid_access_token(user_id: str, provider: str) -> Optional[str]:
+    token = await _get_calendar_token(user_id, provider)
+    if not token:
+        return None
+    try:
+        expires_at = datetime.fromisoformat(token["expires_at"])
+    except Exception:
+        expires_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+    if expires_at <= datetime.now(timezone.utc) + timedelta(seconds=60):
+        if provider == "google":
+            token = await _refresh_google_token(token)
+        else:
+            token = await _refresh_ms_token(token)
+    return token.get("access_token")
+
+
+# ---------- OAuth Start / Callback ----------
+@api_router.get("/oauth/google/start")
+async def google_oauth_start(request: Request, token: str = Query(...)):
+    user = await _get_user_from_query_token(token)
+    if not GOOGLE_CLIENT_ID:
+        return _success_html("google", False, "Google OAuth is not configured on this server. Please set GOOGLE_CLIENT_ID + SECRET.")
+    state = _sign_oauth_state(user["id"], "google")
+    params = {
+        "response_type": "code",
+        "client_id": GOOGLE_CLIENT_ID,
+        "redirect_uri": _google_redirect_uri(request),
+        "scope": " ".join(GOOGLE_SCOPES),
+        "access_type": "offline",
+        "include_granted_scopes": "true",
+        "prompt": "consent",
+        "state": state,
+    }
+    return RedirectResponse(f"{GOOGLE_AUTH_ENDPOINT}?{urlencode(params)}")
+
+
+@api_router.get("/oauth/google/callback")
+async def google_oauth_callback(request: Request, code: Optional[str] = None, state: Optional[str] = None, error: Optional[str] = None):
+    if error:
+        return _success_html("google", False, f"Google returned: {error}")
+    if not code or not state:
+        return _success_html("google", False, "Missing code or state.")
+    user_id = _verify_oauth_state(state, "google")
+    if not user_id:
+        return _success_html("google", False, "Invalid or expired state.")
+    async with httpx.AsyncClient(timeout=20.0) as client_:
+        resp = await client_.post(
+            GOOGLE_TOKEN_ENDPOINT,
+            data={
+                "code": code,
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "redirect_uri": _google_redirect_uri(request),
+                "grant_type": "authorization_code",
+            },
+        )
+    if resp.status_code != 200:
+        return _success_html("google", False, f"Token exchange failed: {resp.text[:200]}")
+    data = resp.json()
+    refresh_token = data.get("refresh_token")
+    if not refresh_token:
+        # User may have already granted before; check existing token
+        existing = await _get_calendar_token(user_id, "google")
+        if existing and existing.get("refresh_token"):
+            refresh_token = existing["refresh_token"]
+        else:
+            return _success_html("google", False, "No refresh token returned. Revoke access in Google account and try again.")
+    expires_at = (datetime.now(timezone.utc) + timedelta(seconds=int(data.get("expires_in", 3600)))).isoformat()
+    await _upsert_calendar_token(user_id, "google", {
+        "access_token": data["access_token"],
+        "refresh_token": refresh_token,
+        "expires_at": expires_at,
+        "scope": data.get("scope"),
+        "default_calendar_id": "primary",
+        "connected_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return _success_html("google", True)
+
+
+@api_router.get("/oauth/microsoft/start")
+async def microsoft_oauth_start(request: Request, token: str = Query(...)):
+    user = await _get_user_from_query_token(token)
+    if not MS_CLIENT_ID:
+        return _success_html("microsoft", False, "Microsoft OAuth is not configured on this server. Please set MS_CLIENT_ID + SECRET.")
+    state = _sign_oauth_state(user["id"], "microsoft")
+    params = {
+        "client_id": MS_CLIENT_ID,
+        "response_type": "code",
+        "redirect_uri": _ms_redirect_uri(request),
+        "response_mode": "query",
+        "scope": " ".join(MS_SCOPES),
+        "state": state,
+        "prompt": "select_account",
+    }
+    return RedirectResponse(f"{MS_AUTH_ENDPOINT}?{urlencode(params)}")
+
+
+@api_router.get("/oauth/microsoft/callback")
+async def microsoft_oauth_callback(request: Request, code: Optional[str] = None, state: Optional[str] = None, error: Optional[str] = None, error_description: Optional[str] = None):
+    if error:
+        return _success_html("microsoft", False, f"Microsoft returned: {error_description or error}")
+    if not code or not state:
+        return _success_html("microsoft", False, "Missing code or state.")
+    user_id = _verify_oauth_state(state, "microsoft")
+    if not user_id:
+        return _success_html("microsoft", False, "Invalid or expired state.")
+    async with httpx.AsyncClient(timeout=20.0) as client_:
+        resp = await client_.post(
+            MS_TOKEN_ENDPOINT,
+            data={
+                "client_id": MS_CLIENT_ID,
+                "client_secret": MS_CLIENT_SECRET,
+                "code": code,
+                "redirect_uri": _ms_redirect_uri(request),
+                "grant_type": "authorization_code",
+                "scope": " ".join(MS_SCOPES),
+            },
+        )
+    if resp.status_code != 200:
+        return _success_html("microsoft", False, f"Token exchange failed: {resp.text[:200]}")
+    data = resp.json()
+    refresh_token = data.get("refresh_token")
+    if not refresh_token:
+        existing = await _get_calendar_token(user_id, "microsoft")
+        if existing and existing.get("refresh_token"):
+            refresh_token = existing["refresh_token"]
+        else:
+            return _success_html("microsoft", False, "No refresh token returned. Ensure 'offline_access' scope is granted.")
+    expires_at = (datetime.now(timezone.utc) + timedelta(seconds=int(data.get("expires_in", 3600)))).isoformat()
+    await _upsert_calendar_token(user_id, "microsoft", {
+        "access_token": data["access_token"],
+        "refresh_token": refresh_token,
+        "expires_at": expires_at,
+        "scope": data.get("scope"),
+        "default_calendar_id": None,  # primary calendar
+        "connected_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return _success_html("microsoft", True)
+
+
+# ---------- Calendar status / disconnect ----------
+@api_router.get("/calendar/status")
+async def calendar_status(current_user: dict = Depends(get_current_user)):
+    google = await _get_calendar_token(current_user["id"], "google")
+    microsoft = await _get_calendar_token(current_user["id"], "microsoft")
+    return {
+        "google": {
+            "connected": bool(google),
+            "connected_at": google.get("connected_at") if google else None,
+            "configured": bool(GOOGLE_CLIENT_ID),
+        },
+        "microsoft": {
+            "connected": bool(microsoft),
+            "connected_at": microsoft.get("connected_at") if microsoft else None,
+            "configured": bool(MS_CLIENT_ID),
+        },
+    }
+
+
+@api_router.post("/calendar/disconnect/{provider}")
+async def calendar_disconnect(provider: str, current_user: dict = Depends(get_current_user)):
+    if provider not in ("google", "microsoft"):
+        raise HTTPException(status_code=400, detail="Invalid provider")
+    # Best-effort: delete all event mappings for this user/provider
+    await db.calendar_tokens.delete_one({"user_id": current_user["id"], "provider": provider})
+    # Clear external event IDs from bills
+    field = "google_event_id" if provider == "google" else "microsoft_event_id"
+    await db.bills.update_many({"user_id": current_user["id"], field: {"$exists": True}}, {"$unset": {field: ""}})
+    return {"ok": True, "provider": provider}
+
+
+# ---------- Event push helpers ----------
+def _bill_event_body_google(bill_doc: dict) -> dict:
+    due = bill_doc["due_date"]
+    try:
+        d = datetime.fromisoformat(due).date()
+    except Exception:
+        d = datetime.now(timezone.utc).date()
+    end = (d + timedelta(days=1)).isoformat()
+    desc = f"Amount due: ${float(bill_doc['amount']):.2f}\nCategory: {bill_doc.get('category', 'Other')}"
+    if bill_doc.get("notes"):
+        desc += f"\n\n{bill_doc['notes']}"
+    return {
+        "summary": f"💰 {bill_doc['title']}",
+        "description": desc,
+        "start": {"date": d.isoformat()},
+        "end": {"date": end},
+        "reminders": {"useDefault": False, "overrides": [{"method": "popup", "minutes": 1440}]},
+        "source": {"title": "BillCal", "url": "https://billcal.app"},
+    }
+
+
+def _bill_event_body_ms(bill_doc: dict) -> dict:
+    due = bill_doc["due_date"]
+    try:
+        d = datetime.fromisoformat(due).date()
+    except Exception:
+        d = datetime.now(timezone.utc).date()
+    end = d + timedelta(days=1)
+    desc = f"Amount due: ${float(bill_doc['amount']):.2f}<br/>Category: {bill_doc.get('category', 'Other')}"
+    if bill_doc.get("notes"):
+        desc += f"<br/><br/>{bill_doc['notes']}"
+    return {
+        "subject": f"💰 {bill_doc['title']}",
+        "body": {"contentType": "HTML", "content": desc},
+        "isAllDay": True,
+        "start": {"dateTime": f"{d.isoformat()}T00:00:00", "timeZone": "UTC"},
+        "end": {"dateTime": f"{end.isoformat()}T00:00:00", "timeZone": "UTC"},
+        "isReminderOn": True,
+        "reminderMinutesBeforeStart": 1440,
+        "categories": ["BillCal"],
+    }
+
+
+async def _google_create_event(user_id: str, bill_doc: dict) -> Optional[str]:
+    access = await _get_valid_access_token(user_id, "google")
+    if not access:
+        return None
+    token = await _get_calendar_token(user_id, "google")
+    cal_id = (token or {}).get("default_calendar_id") or "primary"
+    async with httpx.AsyncClient(timeout=20.0) as c:
+        r = await c.post(
+            f"{GOOGLE_CALENDAR_API_BASE}/calendars/{cal_id}/events",
+            headers={"Authorization": f"Bearer {access}"},
+            json=_bill_event_body_google(bill_doc),
+        )
+    if r.status_code not in (200, 201):
+        logger.warning("google create event failed: %s %s", r.status_code, r.text[:300])
+        return None
+    return r.json().get("id")
+
+
+async def _google_update_event(user_id: str, bill_doc: dict) -> None:
+    event_id = bill_doc.get("google_event_id")
+    if not event_id:
+        return
+    access = await _get_valid_access_token(user_id, "google")
+    if not access:
+        return
+    token = await _get_calendar_token(user_id, "google")
+    cal_id = (token or {}).get("default_calendar_id") or "primary"
+    async with httpx.AsyncClient(timeout=20.0) as c:
+        r = await c.put(
+            f"{GOOGLE_CALENDAR_API_BASE}/calendars/{cal_id}/events/{event_id}",
+            headers={"Authorization": f"Bearer {access}"},
+            json=_bill_event_body_google(bill_doc),
+        )
+    if r.status_code not in (200, 201):
+        logger.warning("google update event failed: %s %s", r.status_code, r.text[:300])
+
+
+async def _google_delete_event(user_id: str, bill_doc: dict) -> None:
+    event_id = bill_doc.get("google_event_id")
+    if not event_id:
+        return
+    access = await _get_valid_access_token(user_id, "google")
+    if not access:
+        return
+    token = await _get_calendar_token(user_id, "google")
+    cal_id = (token or {}).get("default_calendar_id") or "primary"
+    async with httpx.AsyncClient(timeout=20.0) as c:
+        await c.delete(
+            f"{GOOGLE_CALENDAR_API_BASE}/calendars/{cal_id}/events/{event_id}",
+            headers={"Authorization": f"Bearer {access}"},
+        )
+
+
+async def _ms_create_event(user_id: str, bill_doc: dict) -> Optional[str]:
+    access = await _get_valid_access_token(user_id, "microsoft")
+    if not access:
+        return None
+    async with httpx.AsyncClient(timeout=20.0) as c:
+        r = await c.post(
+            f"{MS_GRAPH_BASE}/me/calendar/events",
+            headers={"Authorization": f"Bearer {access}", "Content-Type": "application/json"},
+            json=_bill_event_body_ms(bill_doc),
+        )
+    if r.status_code not in (200, 201):
+        logger.warning("ms create event failed: %s %s", r.status_code, r.text[:300])
+        return None
+    return r.json().get("id")
+
+
+async def _ms_update_event(user_id: str, bill_doc: dict) -> None:
+    event_id = bill_doc.get("microsoft_event_id")
+    if not event_id:
+        return
+    access = await _get_valid_access_token(user_id, "microsoft")
+    if not access:
+        return
+    async with httpx.AsyncClient(timeout=20.0) as c:
+        r = await c.patch(
+            f"{MS_GRAPH_BASE}/me/events/{event_id}",
+            headers={"Authorization": f"Bearer {access}", "Content-Type": "application/json"},
+            json=_bill_event_body_ms(bill_doc),
+        )
+    if r.status_code not in (200, 201):
+        logger.warning("ms update event failed: %s %s", r.status_code, r.text[:300])
+
+
+async def _ms_delete_event(user_id: str, bill_doc: dict) -> None:
+    event_id = bill_doc.get("microsoft_event_id")
+    if not event_id:
+        return
+    access = await _get_valid_access_token(user_id, "microsoft")
+    if not access:
+        return
+    async with httpx.AsyncClient(timeout=20.0) as c:
+        await c.delete(
+            f"{MS_GRAPH_BASE}/me/events/{event_id}",
+            headers={"Authorization": f"Bearer {access}"},
+        )
+
+
+async def _sync_bill_create(user_id: str, bill_id: str):
+    """Create events in connected providers for a bill. Best-effort, ignore failures."""
+    doc = await db.bills.find_one({"id": bill_id, "user_id": user_id}, {"_id": 0})
+    if not doc:
+        return
+    update = {}
+    try:
+        if await _get_calendar_token(user_id, "google"):
+            ev = await _google_create_event(user_id, doc)
+            if ev:
+                update["google_event_id"] = ev
+    except Exception as e:
+        logger.warning("google sync failed: %s", e)
+    try:
+        if await _get_calendar_token(user_id, "microsoft"):
+            ev = await _ms_create_event(user_id, doc)
+            if ev:
+                update["microsoft_event_id"] = ev
+    except Exception as e:
+        logger.warning("ms sync failed: %s", e)
+    if update:
+        await db.bills.update_one({"id": bill_id, "user_id": user_id}, {"$set": update})
+
+
+async def _sync_bill_update(user_id: str, bill_id: str):
+    doc = await db.bills.find_one({"id": bill_id, "user_id": user_id}, {"_id": 0})
+    if not doc:
+        return
+    try:
+        if await _get_calendar_token(user_id, "google"):
+            if doc.get("google_event_id"):
+                await _google_update_event(user_id, doc)
+            else:
+                ev = await _google_create_event(user_id, doc)
+                if ev:
+                    await db.bills.update_one({"id": bill_id, "user_id": user_id}, {"$set": {"google_event_id": ev}})
+    except Exception as e:
+        logger.warning("google update sync failed: %s", e)
+    try:
+        if await _get_calendar_token(user_id, "microsoft"):
+            if doc.get("microsoft_event_id"):
+                await _ms_update_event(user_id, doc)
+            else:
+                ev = await _ms_create_event(user_id, doc)
+                if ev:
+                    await db.bills.update_one({"id": bill_id, "user_id": user_id}, {"$set": {"microsoft_event_id": ev}})
+    except Exception as e:
+        logger.warning("ms update sync failed: %s", e)
+
+
+async def _sync_bill_delete(user_id: str, bill_doc: dict):
+    try:
+        if bill_doc.get("google_event_id") and await _get_calendar_token(user_id, "google"):
+            await _google_delete_event(user_id, bill_doc)
+    except Exception as e:
+        logger.warning("google delete sync failed: %s", e)
+    try:
+        if bill_doc.get("microsoft_event_id") and await _get_calendar_token(user_id, "microsoft"):
+            await _ms_delete_event(user_id, bill_doc)
+    except Exception as e:
+        logger.warning("ms delete sync failed: %s", e)
+
+
+@api_router.post("/calendar/sync_all")
+async def calendar_sync_all(background: BackgroundTasks, current_user: dict = Depends(get_current_user)):
+    """Force-push all of the user's bills to connected providers (creates events for any not yet synced)."""
+    google_connected = bool(await _get_calendar_token(current_user["id"], "google"))
+    ms_connected = bool(await _get_calendar_token(current_user["id"], "microsoft"))
+    if not google_connected and not ms_connected:
+        raise HTTPException(status_code=400, detail="No calendar connected")
+    bills = await db.bills.find({"user_id": current_user["id"]}, {"_id": 0}).to_list(2000)
+
+    async def push():
+        for b in bills:
+            await _sync_bill_update(current_user["id"], b["id"])
+
+    background.add_task(push)
+    return {"ok": True, "scheduled": len(bills), "google": google_connected, "microsoft": ms_connected}
 
 
 # ---------- Mock Bank Sync ----------
