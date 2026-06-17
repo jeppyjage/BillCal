@@ -207,11 +207,12 @@ export default function CalendarScreen() {
                 const k = ymd(d);
                 (billsByDate[k] || []).forEach(b => {
                   billsTotal += b.amount; weekBills.push(b);
+                  // Paid bills also count as money spent
+                  if (b.paid) txTotal += b.amount;
                 });
                 (txByDate[k] || []).forEach(t => {
                   if (t.amount < 0) {
                     const amt = Math.abs(t.amount);
-                    // Bill-category transactions also count toward Bills
                     if (BILL_CATEGORIES.includes(t.category)) {
                       billsTotal += amt;
                     }
