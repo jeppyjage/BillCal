@@ -304,8 +304,8 @@ export default function CalendarScreen() {
                       );
                     })}
                   </View>
-                  <View style={[s.weekTotalRow, { backgroundColor: theme.surfaceTertiary, borderTopColor: theme.border, borderBottomColor: theme.border }]} testID={`week-total-${weekIdx}`}>
-                    <Text style={[s.weekTotalLabel, { color: theme.onSurfaceSecondary }]}>
+                  <View style={[s.weekTotalRow, { backgroundColor: "#374151", borderTopColor: theme.border, borderBottomColor: theme.border }]} testID={`week-total-${weekIdx}`}>
+                    <Text style={[s.weekTotalLabel, { color: "#D1D5DB" }]}>
                       Week of {week[0].toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                     </Text>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
@@ -315,11 +315,11 @@ export default function CalendarScreen() {
                         </Text>
                       )}
                       {txTotal > 0 && (
-                        <Text style={{ color: theme.onSurfaceSecondary, fontSize: 12 }}>
+                        <Text style={{ color: "#D1D5DB", fontSize: 12 }}>
                           Spent ${txTotal.toFixed(0)}
                         </Text>
                       )}
-                      <Text style={{ color: theme.onSurface, fontSize: 13, fontWeight: "600" }}>
+                      <Text style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "600" }}>
                         = ${weekTotal.toFixed(0)}
                       </Text>
                     </View>
