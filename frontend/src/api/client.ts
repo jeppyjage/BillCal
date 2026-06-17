@@ -57,6 +57,8 @@ export const api = {
     request<{ ok: boolean }>(`/bills/${id}`, token, { method: "DELETE" }),
   togglePaid: (token: string, id: string) =>
     request<Bill>(`/bills/${id}/toggle_paid`, token, { method: "POST" }),
+  autoDetect: (token: string) =>
+    request<Bill[]>("/bills/auto_detect", token, { method: "POST" }),
   seedExamples: (token: string) =>
     request<Bill[]>("/bills/seed_examples", token, { method: "POST" }),
   listAccounts: (token: string) => request<BankAccount[]>("/bank/accounts", token),

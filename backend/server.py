@@ -290,6 +290,70 @@ async def seed_example_bills(current_user: dict = Depends(get_current_user)):
     return created
 
 
+@api_router.post("/bills/auto_detect", response_model=List[Bill])
+async def auto_detect_recurring(current_user: dict = Depends(get_current_user)):
+    """Scan bank transactions for recurring patterns and create/update matching Bill records."""
+    txs = await db.bank_transactions.find({"user_id": current_user["id"]}, {"_id": 0, "user_id": 0}).to_list(500)
+    # Group transactions by (category, rounded amount)
+    groups: dict = {}
+    for t in txs:
+        if t["amount"] >= 0:  # expenses only
+            continue
+        amt = round(abs(t["amount"]))
+        key = (t["category"], amt)
+        groups.setdefault(key, []).append(t)
+
+    result: List[Bill] = []
+    for (category, amt), items in groups.items():
+        if len(items) < 2:
+            continue
+        # Sort by date
+        items.sort(key=lambda x: x["date"])
+        # Check if gaps look monthly (25-35 day spacing)
+        gaps = []
+        for i in range(1, len(items)):
+            d1 = datetime.fromisoformat(items[i - 1]["date"])
+            d2 = datetime.fromisoformat(items[i]["date"])
+            gaps.append((d2 - d1).days)
+        if not gaps or not all(20 <= g <= 40 for g in gaps):
+            continue
+        # Predict next due date: last tx + 30 days
+        last_date = datetime.fromisoformat(items[-1]["date"])
+        next_due = (last_date + timedelta(days=30)).date().isoformat()
+        title = items[-1]["description"]
+        # Use the actual transaction amount (not rounded)
+        real_amt = round(abs(items[-1]["amount"]), 2)
+        # Find existing bill matching category + amount (within $1)
+        existing = await db.bills.find_one({
+            "user_id": current_user["id"],
+            "category": category,
+        }, {"_id": 0})
+        if existing and abs(existing["amount"] - real_amt) < 2:
+            await db.bills.update_one(
+                {"id": existing["id"]},
+                {"$set": {"title": title, "amount": real_amt, "due_date": next_due, "recurrence": "monthly"}},
+            )
+            existing.update({"title": title, "amount": real_amt, "due_date": next_due, "recurrence": "monthly"})
+            result.append(Bill(**existing))
+        else:
+            new_id = str(uuid.uuid4())
+            doc = {
+                "id": new_id,
+                "user_id": current_user["id"],
+                "title": title,
+                "amount": real_amt,
+                "due_date": next_due,
+                "category": category,
+                "recurrence": "monthly",
+                "notes": "Auto-detected from bank transactions",
+                "paid": False,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+            await db.bills.insert_one(doc)
+            result.append(Bill(**{k: v for k, v in doc.items() if k != "_id"}))
+    return result
+
+
 # ---------- Mock Bank Sync ----------
 MOCK_BANKS = [
     {"name": "Everyday Checking", "type": "checking", "masked_number": "****4521", "balance": 3284.55, "institution": "Greenleaf Bank"},

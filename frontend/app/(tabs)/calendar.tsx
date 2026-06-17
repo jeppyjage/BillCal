@@ -46,6 +46,8 @@ export default function CalendarScreen() {
   const load = useCallback(async () => {
     if (!token) return;
     try {
+      // Run auto-detect (creates/updates bills from recurring transactions) before fetching
+      await api.autoDetect(token).catch(() => {});
       const [b, t] = await Promise.all([api.listBills(token), api.listTransactions(token)]);
       // Auto-mark bills paid when a matching transaction is found (same category + amount within $1).
       // A bill is considered paid by a transaction whose date is on/after the bill's due_date minus
