@@ -86,7 +86,9 @@ export default function CalendarScreen() {
       };
       // Always push the original date
       if (original >= winStart && original <= winEnd) push(original, false);
-      // Expand recurrence into the window
+      // Expand recurrence FORWARD into the window only (don't project backward — historical
+      // payments are already represented by bank transactions, projecting backward would
+      // duplicate them on the calendar).
       if (b.recurrence && b.recurrence !== "none") {
         const step = (d: Date) => {
           const n = new Date(d);
@@ -95,26 +97,11 @@ export default function CalendarScreen() {
           else if (b.recurrence === "yearly") n.setFullYear(n.getFullYear() + 1);
           return n;
         };
-        // forward
         let cur = step(original);
         let guard = 0;
         while (cur <= winEnd && guard < 400) {
           if (cur >= winStart) push(cur, true);
           cur = step(cur); guard++;
-        }
-        // backward (for viewing past months that pre-date the original)
-        const stepBack = (d: Date) => {
-          const n = new Date(d);
-          if (b.recurrence === "weekly") n.setDate(n.getDate() - 7);
-          else if (b.recurrence === "monthly") n.setMonth(n.getMonth() - 1);
-          else if (b.recurrence === "yearly") n.setFullYear(n.getFullYear() - 1);
-          return n;
-        };
-        cur = stepBack(original);
-        guard = 0;
-        while (cur >= winStart && guard < 400) {
-          if (cur <= winEnd) push(cur, true);
-          cur = stepBack(cur); guard++;
         }
       }
     });
