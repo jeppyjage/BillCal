@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useAuth } from "@/src/context/AuthContext";
 import { useTheme, SPACING, RADIUS, CATEGORIES } from "@/src/theme";
-import { api, Bill } from "@/src/api/client";
+import { api, Bill, BankTransaction } from "@/src/api/client";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["January", "February", "March", "April", "May", "June",
@@ -31,6 +31,7 @@ export default function CalendarScreen() {
   const theme = useTheme();
   const { token } = useAuth();
   const [bills, setBills] = useState<Bill[]>([]);
+  const [transactions, setTransactions] = useState<BankTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [cursor, setCursor] = useState(new Date());
@@ -39,7 +40,10 @@ export default function CalendarScreen() {
 
   const load = useCallback(async () => {
     if (!token) return;
-    try { setBills(await api.listBills(token)); } catch {}
+    try {
+      const [b, t] = await Promise.all([api.listBills(token), api.listTransactions(token)]);
+      setBills(b); setTransactions(t);
+    } catch {}
     finally { setLoading(false); setRefreshing(false); }
   }, [token]);
 
@@ -112,6 +116,15 @@ export default function CalendarScreen() {
     });
     return map;
   }, [bills, month.y, month.m]);
+
+  const txByDate = useMemo(() => {
+    const map: Record<string, BankTransaction[]> = {};
+    transactions.forEach(t => {
+      if (!map[t.date]) map[t.date] = [];
+      map[t.date].push(t);
+    });
+    return map;
+  }, [transactions]);
 
   const todayStr = ymd(new Date());
   const goPrev = () => setCursor(new Date(month.y, month.m - 1, 1));
@@ -186,8 +199,10 @@ export default function CalendarScreen() {
                 const isSelected = k === selectedDate;
                 const isToday = k === todayStr;
                 const dayBills = billsByDate[k] || [];
+                const dayTxs = txByDate[k] || [];
                 const visible = dayBills.slice(0, MAX_BILLS);
-                const overflow = dayBills.length - visible.length;
+                const txVisible = dayTxs.slice(0, Math.max(1, MAX_BILLS - visible.length));
+                const overflow = (dayBills.length - visible.length) + (dayTxs.length - txVisible.length);
                 return (
                   <Pressable
                     key={idx}
@@ -232,6 +247,27 @@ export default function CalendarScreen() {
                           >
                             <Text numberOfLines={1} style={[s.pillText, { color: "#FFFFFF", fontSize: PILL_FS, textDecorationLine: b.paid ? "line-through" : "none" }]}>
                               {b.title}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                      {txVisible.map(t => {
+                        const isCredit = t.amount > 0;
+                        return (
+                          <Pressable
+                            key={t.id}
+                            testID={`cell-tx-${t.id}`}
+                            onPress={() => router.push("/(tabs)/bank")}
+                            style={[
+                              s.txPill,
+                              {
+                                backgroundColor: theme.surfaceSecondary,
+                                borderLeftColor: isCredit ? theme.success : theme.info,
+                              },
+                            ]}
+                          >
+                            <Text numberOfLines={1} style={[s.txPillText, { color: theme.onSurfaceSecondary, fontSize: Math.max(8, PILL_FS - 1) }]}>
+                              {isCredit ? "+" : "−"}${Math.abs(t.amount).toFixed(0)} {t.description}
                             </Text>
                           </Pressable>
                         );
@@ -297,6 +333,15 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   pillText: { fontWeight: "500", textAlign: "center" },
+  txPill: {
+    borderRadius: 3,
+    borderLeftWidth: 2,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    minHeight: 16,
+    justifyContent: "center",
+  },
+  txPillText: { fontWeight: "400" },
   moreText: { fontSize: 10, textAlign: "center", fontWeight: "500" },
   fab: {
     position: "absolute", right: SPACING.lg, bottom: 24, width: 56, height: 56, borderRadius: 28,
