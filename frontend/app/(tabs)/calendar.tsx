@@ -47,7 +47,29 @@ export default function CalendarScreen() {
     if (!token) return;
     try {
       const [b, t] = await Promise.all([api.listBills(token), api.listTransactions(token)]);
-      setBills(b); setTransactions(t);
+      // Auto-mark bills paid when a matching transaction is found (same category + amount within $1).
+      // A bill is considered paid by a transaction whose date is on/after the bill's due_date minus
+      // a 7-day grace window (covers cases where you pay a few days early).
+      const updatedBills = [...b];
+      const toMarkPaid: string[] = [];
+      for (let i = 0; i < updatedBills.length; i++) {
+        const bill = updatedBills[i];
+        if (bill.paid) continue;
+        const dueMs = new Date(bill.due_date + "T00:00:00").getTime();
+        const match = t.find(tx =>
+          tx.amount < 0 &&
+          tx.category === bill.category &&
+          Math.abs(Math.abs(tx.amount) - bill.amount) < 1 &&
+          new Date(tx.date + "T00:00:00").getTime() >= dueMs - 7 * 86400000
+        );
+        if (match) {
+          toMarkPaid.push(bill.id);
+          updatedBills[i] = { ...bill, paid: true };
+        }
+      }
+      // Fire-and-forget the toggle calls so UI is responsive
+      toMarkPaid.forEach(id => api.togglePaid(token, id).catch(() => {}));
+      setBills(updatedBills); setTransactions(t);
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
   }, [token]);
