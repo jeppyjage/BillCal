@@ -132,6 +132,9 @@ export default function CalendarScreen() {
     return map;
   }, [transactions]);
 
+  // Categories that should be treated as "bill-like" expenses (count toward Bills, not Spent)
+  const BILL_CATEGORIES = ["Rent", "Utilities", "Subscriptions", "Insurance", "Internet", "Phone", "Credit Card"];
+
   // Group the flat month.cells (length 35 or 42) into weeks of 7
   const weeks = useMemo(() => {
     const arr: Date[][] = [];
@@ -219,7 +222,16 @@ export default function CalendarScreen() {
                   if (!b.paid) { billsTotal += b.amount; weekBills.push(b); }
                 });
                 (txByDate[k] || []).forEach(t => {
-                  if (t.amount < 0) { txTotal += Math.abs(t.amount); weekTxs.push(t); }
+                  if (t.amount < 0) {
+                    const amt = Math.abs(t.amount);
+                    if (BILL_CATEGORIES.includes(t.category)) {
+                      billsTotal += amt;
+                      weekBills.push({ ...t, isTransaction: true } as any);
+                    } else {
+                      txTotal += amt;
+                      weekTxs.push(t);
+                    }
+                  }
                 });
               });
               const weekTotal = billsTotal + txTotal;
@@ -345,14 +357,14 @@ export default function CalendarScreen() {
                           {weekBills.length > 0 && (
                             <Text style={[s.detailHeader, { color: theme.warning }]}>BILLS DUE</Text>
                           )}
-                          {weekBills.map(b => (
+                          {weekBills.map((b: any) => (
                             <Pressable
                               key={`wb-${b.id}-${weekIdx}`}
-                              onPress={() => router.push(`/bill/${b.id}`)}
+                              onPress={() => b.isTransaction ? router.push("/(tabs)/bank") : router.push(`/bill/${b.id}`)}
                               style={s.detailRow}
                             >
-                              <Text style={{ color: theme.onSurface, fontSize: 13, flex: 1 }} numberOfLines={1}>{b.title}</Text>
-                              <Text style={{ color: theme.onSurface, fontSize: 13, fontWeight: "500" }}>${b.amount.toFixed(2)}</Text>
+                              <Text style={{ color: theme.onSurface, fontSize: 13, flex: 1 }} numberOfLines={1}>{b.title || b.description}</Text>
+                              <Text style={{ color: theme.onSurface, fontSize: 13, fontWeight: "500" }}>${Math.abs(b.amount).toFixed(2)}</Text>
                             </Pressable>
                           ))}
                           {weekTxs.length > 0 && (
