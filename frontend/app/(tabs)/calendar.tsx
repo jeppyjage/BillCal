@@ -64,14 +64,54 @@ export default function CalendarScreen() {
   }, [cursor]);
 
   const billsByDate = useMemo(() => {
-    const map: Record<string, Bill[]> = {};
+    const map: Record<string, (Bill & { isVirtual?: boolean })[]> = {};
+    // Visible window: current month +/- 1 month
+    const winStart = new Date(month.y, month.m - 1, 1);
+    const winEnd = new Date(month.y, month.m + 2, 0);
     bills.forEach(b => {
-      const k = b.due_date;
-      if (!map[k]) map[k] = [];
-      map[k].push(b);
+      const original = new Date(b.due_date + "T00:00:00");
+      const push = (d: Date, virtual: boolean) => {
+        const k = ymd(d);
+        if (!map[k]) map[k] = [];
+        // For virtual (future recurring) instances, always show as unpaid
+        map[k].push(virtual ? { ...b, paid: false, isVirtual: true } : b);
+      };
+      // Always push the original date
+      if (original >= winStart && original <= winEnd) push(original, false);
+      // Expand recurrence into the window
+      if (b.recurrence && b.recurrence !== "none") {
+        const step = (d: Date) => {
+          const n = new Date(d);
+          if (b.recurrence === "weekly") n.setDate(n.getDate() + 7);
+          else if (b.recurrence === "monthly") n.setMonth(n.getMonth() + 1);
+          else if (b.recurrence === "yearly") n.setFullYear(n.getFullYear() + 1);
+          return n;
+        };
+        // forward
+        let cur = step(original);
+        let guard = 0;
+        while (cur <= winEnd && guard < 400) {
+          if (cur >= winStart) push(cur, true);
+          cur = step(cur); guard++;
+        }
+        // backward (for viewing past months that pre-date the original)
+        const stepBack = (d: Date) => {
+          const n = new Date(d);
+          if (b.recurrence === "weekly") n.setDate(n.getDate() - 7);
+          else if (b.recurrence === "monthly") n.setMonth(n.getMonth() - 1);
+          else if (b.recurrence === "yearly") n.setFullYear(n.getFullYear() - 1);
+          return n;
+        };
+        cur = stepBack(original);
+        guard = 0;
+        while (cur >= winStart && guard < 400) {
+          if (cur <= winEnd) push(cur, true);
+          cur = stepBack(cur); guard++;
+        }
+      }
     });
     return map;
-  }, [bills]);
+  }, [bills, month.y, month.m]);
 
   const todayStr = ymd(new Date());
   const goPrev = () => setCursor(new Date(month.y, month.m - 1, 1));
