@@ -115,7 +115,6 @@ export default function CalendarScreen() {
     const matchesBill = (t: BankTransaction): boolean =>
       bills.some(b => b.category === t.category && Math.abs(Math.abs(t.amount) - b.amount) < 1);
     transactions.forEach(t => {
-      if (Math.abs(t.amount) < 20) return;
       if (t.amount < 0 && matchesBill(t)) return;
       if (!map[t.date]) map[t.date] = [];
       map[t.date].push(t);
