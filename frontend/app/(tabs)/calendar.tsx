@@ -206,7 +206,7 @@ export default function CalendarScreen() {
               week.forEach(d => {
                 const k = ymd(d);
                 (billsByDate[k] || []).forEach(b => {
-                  if (!b.paid) { billsTotal += b.amount; weekBills.push(b); }
+                  billsTotal += b.amount; weekBills.push(b);
                 });
                 // Spent uses the unfiltered map so matched transactions still count toward outflow
                 (txByDateForTotal[k] || []).forEach(t => {
