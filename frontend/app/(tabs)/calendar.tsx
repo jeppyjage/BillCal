@@ -240,15 +240,12 @@ export default function CalendarScreen() {
                     <Text style={[s.weekTotalLabel, { color: theme.onSurfaceSecondary }]}>
                       Week of {week[0].toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                     </Text>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                      <Text style={{ color: theme.warning, fontSize: 12, fontWeight: "500" }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+                      <Text style={{ color: theme.warning, fontSize: 13, fontWeight: "500" }}>
                         Bills ${billsTotal.toFixed(0)}
                       </Text>
-                      <Text style={{ color: theme.onSurfaceSecondary, fontSize: 12 }}>
+                      <Text style={{ color: theme.onSurface, fontSize: 13, fontWeight: "500" }}>
                         Spent ${txTotal.toFixed(0)}
-                      </Text>
-                      <Text style={{ color: theme.onSurface, fontSize: 13, fontWeight: "600" }}>
-                        = ${weekTotal.toFixed(0)}
                       </Text>
                       <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={14} color={theme.onSurfaceSecondary} />
                     </View>
