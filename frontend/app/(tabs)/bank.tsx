@@ -26,9 +26,11 @@ export default function BankScreen() {
 
   const insightData = useMemo(() => {
     const groups: Record<string, number> = {};
+    // Treat Rent and Utilities as a single category for insights
+    const normalizeCategory = (c: string) => (c === "Rent" || c === "Utilities") ? "Rent & Utilities" : c;
     txs.forEach(t => {
       if (t.amount >= 0) return; // expenses only
-      const key = insightMode === "category" ? t.category : t.description;
+      const key = insightMode === "category" ? normalizeCategory(t.category) : t.description;
       groups[key] = (groups[key] || 0) + Math.abs(t.amount);
     });
     return Object.entries(groups)
