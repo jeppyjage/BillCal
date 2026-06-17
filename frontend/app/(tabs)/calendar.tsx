@@ -228,6 +228,16 @@ export default function CalendarScreen() {
                   }
                 });
               });
+              // Spent = bills + transactions, but dedup pairs that look like the same payment (same amount within $1)
+              const usedBillIdx = new Set<number>();
+              let spentTotal = 0;
+              weekTxs.forEach(t => {
+                const amt = Math.abs(t.amount);
+                const matchIdx = weekBills.findIndex((b, i) => !usedBillIdx.has(i) && Math.abs(amt - b.amount) < 1);
+                if (matchIdx >= 0) usedBillIdx.add(matchIdx);
+                spentTotal += amt;
+              });
+              weekBills.forEach((b, i) => { if (!usedBillIdx.has(i)) spentTotal += b.amount; });
               const weekTotal = billsTotal + txTotal;
               const isExpanded = expandedWeek === weekIdx;
               return (
@@ -245,7 +255,7 @@ export default function CalendarScreen() {
                         Bills ${billsTotal.toFixed(0)}
                       </Text>
                       <Text style={{ color: theme.onSurface, fontSize: 13, fontWeight: "500" }}>
-                        Spent ${txTotal.toFixed(0)}
+                        Spent ${spentTotal.toFixed(0)}
                       </Text>
                       <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={14} color={theme.onSurfaceSecondary} />
                     </View>
