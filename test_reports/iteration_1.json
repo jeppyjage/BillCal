@@ -1,0 +1,34 @@
+{
+  "summary": "Backend-only testing of External Calendar Sync (Microsoft + Google) endpoints plus regression. All 17 pytest tests PASSED (100%). Microsoft OAuth start correctly redirects to login.microsoftonline.com with the expected client_id, redirect_uri (built from x-forwarded headers via the public URL), offline_access + Calendars.ReadWrite scopes, and signed state JWT. Google start returns an HTML 'not configured' page (no redirect) as expected. Calendar status reports google.configured=false, microsoft.configured=true. Disconnect is idempotent, invalid provider returns 400. sync_all with no connections returns 400. New bill creation returns null google_event_id/microsoft_event_id fields and BackgroundTask runs without erroring. All regression endpoints (login, bills CRUD, toggle_paid, bank/accounts, bank/transactions, auto_detect) work.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_calendar_sync.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Google Calendar OAuth is not configured (GOOGLE_CLIENT_ID + SECRET empty in /app/backend/.env). Set these env vars to enable Google sync. Currently the start endpoint correctly returns a 'not configured' HTML page rather than 500, so behavior is graceful but Google sync is unusable until credentials are added."
+  ],
+  "critical_code_review_comments": [
+    "server.py is 1030 lines and approaching the 700-line guideline; consider splitting OAuth/calendar sync into a separate module for maintainability.",
+    "On startup, @app.on_event is deprecated in newer FastAPI versions; consider migrating to lifespan handlers.",
+    "_sync_bill_create/update/delete swallow all exceptions silently via warning logs; consider exposing sync errors via the /api/calendar/status response so the user knows when push sync is failing."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "not tested (skipped per request)"
+  },
+  "seed_data_creation": "None. Used existing demo user (demo@billcal.app). TEST_AutoSyncBill and TEST_RegressionBill created during tests were cleaned up via DELETE.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend calendar sync endpoints fully verified against public URL https://bill-reminder-hub-6.preview.emergentagent.com/api. Microsoft OAuth redirect URI resolves correctly to https://bill-reminder-hub-6.preview.emergentagent.com/api/oauth/microsoft/callback via x-forwarded-host header. The pytest file at /app/backend/tests/test_calendar_sync.py covers status, oauth start/callback, disconnect, sync_all, bill auto-sync hook, and full bills/bank regression. To test live OAuth flows end-to-end (actual token exchange + event push), real Microsoft account consent is required and Google credentials need to be configured."
+}
