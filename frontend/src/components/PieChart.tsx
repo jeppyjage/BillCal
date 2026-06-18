@@ -1,7 +1,33 @@
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import { useMemo } from "react";
+import { View, Text, StyleSheet, Pressable, GestureResponderEvent } from "react-native";
 import Svg, { Path, Circle, G } from "react-native-svg";
 
-const PALETTE = ["#15803D", "#F59E0B", "#EF4444", "#3B82F6", "#8B5CF6", "#EC4899", "#06B6D4", "#84CC16", "#F97316", "#6B7280"];
+// Deterministic color per category — Rent & Utilities is ALWAYS orange.
+const CATEGORY_COLORS: Record<string, string> = {
+  "Rent & Utilities": "#F97316", // orange (matches Outlook BillCal category)
+  "Internet":         "#3B82F6", // blue
+  "Phone":            "#06B6D4", // cyan
+  "Subscriptions":    "#8B5CF6", // purple
+  "Insurance":        "#0EA5E9", // sky
+  "Credit Card":      "#EF4444", // red
+  "Food":             "#F59E0B", // amber
+  "Groceries":        "#15803D", // green
+  "Transportation":   "#84CC16", // lime
+  "Shopping":         "#EC4899", // pink
+  "Health":           "#10B981", // emerald
+  "Entertainment":    "#A855F7", // violet
+  "Income":           "#22C55E", // green
+  "Other":            "#6B7280", // gray
+};
+
+const FALLBACK_PALETTE = ["#15803D", "#F59E0B", "#EF4444", "#3B82F6", "#8B5CF6", "#EC4899", "#06B6D4", "#84CC16", "#F97316", "#6B7280"];
+
+function colorForLabel(label: string): string {
+  if (CATEGORY_COLORS[label]) return CATEGORY_COLORS[label];
+  let h = 0;
+  for (let i = 0; i < label.length; i++) h = (h * 31 + label.charCodeAt(i)) >>> 0;
+  return FALLBACK_PALETTE[h % FALLBACK_PALETTE.length];
+}
 
 interface Slice { label: string; value: number; }
 
@@ -10,11 +36,19 @@ function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
   return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) };
 }
 
-function arcPath(cx: number, cy: number, r: number, startAngle: number, endAngle: number) {
-  const start = polarToCartesian(cx, cy, r, endAngle);
-  const end = polarToCartesian(cx, cy, r, startAngle);
+function donutSlicePath(cx: number, cy: number, rOuter: number, rInner: number, startAngle: number, endAngle: number) {
+  const outerStart = polarToCartesian(cx, cy, rOuter, endAngle);
+  const outerEnd = polarToCartesian(cx, cy, rOuter, startAngle);
+  const innerStart = polarToCartesian(cx, cy, rInner, startAngle);
+  const innerEnd = polarToCartesian(cx, cy, rInner, endAngle);
   const largeArc = endAngle - startAngle <= 180 ? "0" : "1";
-  return `M ${cx} ${cy} L ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 0 ${end.x} ${end.y} Z`;
+  return [
+    `M ${outerStart.x} ${outerStart.y}`,
+    `A ${rOuter} ${rOuter} 0 ${largeArc} 0 ${outerEnd.x} ${outerEnd.y}`,
+    `L ${innerStart.x} ${innerStart.y}`,
+    `A ${rInner} ${rInner} 0 ${largeArc} 1 ${innerEnd.x} ${innerEnd.y}`,
+    "Z",
+  ].join(" ");
 }
 
 interface Props {
@@ -30,51 +64,80 @@ interface Props {
 export default function PieChart({ data, size = 180, onColor, secondaryColor, selectedLabel = null, onSlicePress, onCenterPress }: Props) {
   const total = data.reduce((s, d) => s + d.value, 0) || 1;
   const r = size / 2;
-  let cumulative = 0;
+  const rInner = r * 0.55;
   const selectedSlice = selectedLabel ? data.find(d => d.label === selectedLabel) : null;
   const selectedPct = selectedSlice ? (selectedSlice.value / total) * 100 : 0;
 
+  // Pre-compute slice ranges (for hit-testing)
+  const slices = useMemo(() => {
+    const out: { label: string; startAngle: number; endAngle: number; color: string }[] = [];
+    let cumulative = 0;
+    for (const d of data) {
+      const startAngle = (cumulative / total) * 360;
+      cumulative += d.value;
+      const endAngle = (cumulative / total) * 360;
+      out.push({ label: d.label, startAngle, endAngle, color: colorForLabel(d.label) });
+    }
+    return out;
+  }, [data, total]);
+
+  // Hit-test: determine which slice contains a (x, y) press
+  const hitSlice = (x: number, y: number): string | null => {
+    const dx = x - r;
+    const dy = y - r;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < rInner) return "__center__";
+    if (dist > r) return null; // outside the donut
+    // angle in degrees, 0 at top, going clockwise
+    let angle = Math.atan2(dx, -dy) * (180 / Math.PI);
+    if (angle < 0) angle += 360;
+    for (const sl of slices) {
+      if (angle >= sl.startAngle && angle < sl.endAngle) return sl.label;
+    }
+    return null;
+  };
+
+  const handlePress = (e: GestureResponderEvent) => {
+    const { locationX, locationY } = e.nativeEvent;
+    const hit = hitSlice(locationX, locationY);
+    if (hit === null) return;
+    if (hit === "__center__") {
+      if (selectedSlice && onCenterPress) onCenterPress(selectedSlice.label);
+      else if (selectedLabel && onSlicePress) onSlicePress(null);
+      return;
+    }
+    if (onSlicePress) onSlicePress(hit === selectedLabel ? null : hit);
+  };
+
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
-      <View style={{ width: size, height: size }}>
-        <Svg width={size} height={size}>
+      <Pressable style={{ width: size, height: size }} onPress={handlePress} testID="pie-svg-area">
+        <Svg width={size} height={size} pointerEvents="none">
           {data.length === 0 ? (
             <Circle cx={r} cy={r} r={r - 1} fill="none" stroke={secondaryColor} strokeWidth={1} />
           ) : (
             <G>
-              {data.map((d, i) => {
-                const startAngle = (cumulative / total) * 360;
-                cumulative += d.value;
-                const endAngle = (cumulative / total) * 360;
-                const path = arcPath(r, r, r - 1, startAngle, endAngle === 360 ? 359.99 : endAngle);
-                const baseColor = PALETTE[i % PALETTE.length];
-                const isSelected = selectedLabel === d.label;
+              {slices.map((sl, i) => {
+                const safeEnd = sl.endAngle === 360 ? 359.99 : sl.endAngle;
+                const path = donutSlicePath(r, r, r - 1, rInner, sl.startAngle, safeEnd);
+                const isSelected = selectedLabel === sl.label;
                 const isDimmed = selectedLabel !== null && !isSelected;
                 return (
                   <Path
-                    key={i}
+                    key={`${sl.label}-${i}`}
                     d={path}
-                    fill={baseColor}
+                    fill={sl.color}
                     opacity={isDimmed ? 0.3 : 1}
-                    onPress={() => onSlicePress && onSlicePress(isSelected ? null : d.label)}
                   />
                 );
               })}
             </G>
           )}
-          <Circle cx={r} cy={r} r={r * 0.55} fill="transparent" />
         </Svg>
-        {/* Center overlay (clickable when selected) */}
-        <Pressable
-          onPress={() => {
-            if (selectedSlice && onCenterPress) {
-              onCenterPress(selectedSlice.label);
-            } else if (selectedLabel && onSlicePress) {
-              onSlicePress(null);
-            }
-          }}
+        {/* Center text overlay — transparent, no event handling (parent Pressable handles) */}
+        <View
+          pointerEvents="none"
           style={[StyleSheet.absoluteFillObject, { alignItems: "center", justifyContent: "center" }]}
-          testID="pie-center"
         >
           {selectedSlice ? (
             <>
@@ -99,20 +162,20 @@ export default function PieChart({ data, size = 180, onColor, secondaryColor, se
               </Text>
             </>
           )}
-        </Pressable>
-      </View>
+        </View>
+      </Pressable>
       <View style={{ flex: 1, gap: 6 }}>
         {data.slice(0, 6).map((d, i) => {
           const isSelected = selectedLabel === d.label;
           const isDimmed = selectedLabel !== null && !isSelected;
           return (
             <Pressable
-              key={i}
+              key={`${d.label}-${i}`}
               onPress={() => onSlicePress && onSlicePress(isSelected ? null : d.label)}
               style={[s.row, { opacity: isDimmed ? 0.4 : 1 }]}
               testID={`pie-legend-${d.label}`}
             >
-              <View style={[s.dot, { backgroundColor: PALETTE[i % PALETTE.length], transform: [{ scale: isSelected ? 1.3 : 1 }] }]} />
+              <View style={[s.dot, { backgroundColor: colorForLabel(d.label), transform: [{ scale: isSelected ? 1.3 : 1 }] }]} />
               <Text style={[s.label, { color: onColor, fontWeight: isSelected ? "600" : "500" }]} numberOfLines={1}>{d.label}</Text>
               <Text style={[s.value, { color: onColor }]}>${d.value.toFixed(0)}</Text>
             </Pressable>
