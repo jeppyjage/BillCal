@@ -62,7 +62,7 @@ export default function PieChart({ data, size = 180, onColor, secondaryColor, se
               })}
             </G>
           )}
-          <Circle cx={r} cy={r} r={r * 0.55} fill={secondaryColor} />
+          <Circle cx={r} cy={r} r={r * 0.55} fill="transparent" />
         </Svg>
         {/* Center overlay (clickable when selected) */}
         <Pressable
