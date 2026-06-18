@@ -1,0 +1,39 @@
+{
+  "summary": "Backend-only testing of the new Calendar Picker endpoints (GET /api/calendar/list/{provider}, POST /api/calendar/set_default/{provider}) and updated GET /api/calendar/status. All 11 new tests PASSED. Full regression of 31 prior tests also PASSED. Total: 42/42 (100%). Verified: (1) /calendar/status now includes default_calendar_id and default_calendar_name fields for both google and microsoft (all null for unconnected demo user); (2) /calendar/list/microsoft and /calendar/list/google return HTTP 400 with detail '<provider> not connected' when no token doc exists; (3) /calendar/list/invalid_provider returns HTTP 400 'Invalid provider'; (4) /calendar/set_default/microsoft returns HTTP 400 'microsoft not connected'; (5) /calendar/set_default/invalid returns HTTP 400 'Invalid provider'; (6) /calendar/set_default/microsoft with missing calendar_id returns HTTP 422 (Pydantic validation); (7) calendar_name optional field accepted; (8) both new endpoints require auth (HTTPBearer returns 403 without header). Regression confirmed for login, bills CRUD (GET/POST/PUT/DELETE/toggle_paid), bank endpoints, /calendar/status, /calendar/disconnect/microsoft, /calendar/sync_all, and OAuth start endpoints for both providers.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_calendar_picker.py",
+    "/app/backend/tests/test_calendar_sync.py",
+    "/app/backend/tests/test_billcal_api.py",
+    "/app/test_reports/pytest/pytest_results.xml",
+    "/app/test_reports/pytest/picker_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "set_default_calendar: when payload.calendar_name is omitted on a subsequent change, the previously stored default_calendar_name is NOT cleared (only set when provided). This may leave a stale name attached to a new calendar_id if frontend ever sends id-only. Consider always upserting both fields (set name to None when not provided) or making frontend always send name.",
+    "set_default_calendar 'unchanged' early-return (old_cal_id == new_cal_id) does NOT update default_calendar_name even if it changed. Minor edge case for users renaming calendars on the provider side.",
+    "list_external_calendars filters Microsoft calendars by canEdit (defaulting True when missing). Graph API actually returns 'canEdit' reliably; the default True is permissive but acceptable.",
+    "set_default deletes events from OLD calendar via _ms_delete_event/_google_delete_event which use the CURRENT default_calendar_id (still the OLD one at this point since update happens after). This is correct behaviour. Verified logic flow is right.",
+    "server.py is now ~1140 lines; would benefit from splitting calendar/oauth into its own module."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_calendar_picker.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (42/42)",
+    "frontend": "not tested (per request)"
+  },
+  "seed_data_creation": "None. Used existing demo user (demo@billcal.app). Autouse fixture defensively disconnects both providers before tests to guarantee 'not connected' state.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All new calendar picker endpoints verified against public URL https://bill-reminder-hub-6.preview.emergentagent.com/api with demo user (not connected to any provider). Tests live in /app/backend/tests/test_calendar_picker.py. The 'connected' code paths (listing real calendars, moving events between calendars) could NOT be tested without a real Microsoft account consent flow; only the unconnected/validation paths were exercised. To test the connected paths (200 response from /calendar/list with real calendar list, event migration on /set_default), a real MS OAuth callback must be completed first and then tests should be authored to mock or use a live connection."
+}

@@ -683,11 +683,15 @@ async def calendar_status(current_user: dict = Depends(get_current_user)):
             "connected": bool(google),
             "connected_at": google.get("connected_at") if google else None,
             "configured": bool(GOOGLE_CLIENT_ID),
+            "default_calendar_id": google.get("default_calendar_id") if google else None,
+            "default_calendar_name": google.get("default_calendar_name") if google else None,
         },
         "microsoft": {
             "connected": bool(microsoft),
             "connected_at": microsoft.get("connected_at") if microsoft else None,
             "configured": bool(MS_CLIENT_ID),
+            "default_calendar_id": microsoft.get("default_calendar_id") if microsoft else None,
+            "default_calendar_name": microsoft.get("default_calendar_name") if microsoft else None,
         },
     }
 
@@ -702,6 +706,110 @@ async def calendar_disconnect(provider: str, current_user: dict = Depends(get_cu
     field = "google_event_id" if provider == "google" else "microsoft_event_id"
     await db.bills.update_many({"user_id": current_user["id"], field: {"$exists": True}}, {"$unset": {field: ""}})
     return {"ok": True, "provider": provider}
+
+
+# ---------- List external calendars / change default ----------
+@api_router.get("/calendar/list/{provider}")
+async def list_external_calendars(provider: str, current_user: dict = Depends(get_current_user)):
+    if provider not in ("google", "microsoft"):
+        raise HTTPException(status_code=400, detail="Invalid provider")
+    access = await _get_valid_access_token(current_user["id"], provider)
+    if not access:
+        raise HTTPException(status_code=400, detail=f"{provider} not connected")
+    token = await _get_calendar_token(current_user["id"], provider)
+    current_default = (token or {}).get("default_calendar_id") if token else None
+    calendars: list = []
+    if provider == "microsoft":
+        async with httpx.AsyncClient(timeout=20.0) as c:
+            r = await c.get(
+                f"{MS_GRAPH_BASE}/me/calendars?$select=id,name,isDefaultCalendar,canEdit&$top=50",
+                headers={"Authorization": f"Bearer {access}"},
+            )
+        if r.status_code != 200:
+            raise HTTPException(status_code=400, detail=f"Failed to list calendars: {r.text[:200]}")
+        for item in r.json().get("value", []):
+            if not item.get("canEdit", True):
+                continue
+            calendars.append({
+                "id": item["id"],
+                "name": item.get("name") or "Calendar",
+                "is_primary": bool(item.get("isDefaultCalendar")),
+                "is_current": (current_default == item["id"]) or (current_default is None and item.get("isDefaultCalendar")),
+            })
+    else:  # google
+        async with httpx.AsyncClient(timeout=20.0) as c:
+            r = await c.get(
+                f"{GOOGLE_CALENDAR_API_BASE}/users/me/calendarList?maxResults=50",
+                headers={"Authorization": f"Bearer {access}"},
+            )
+        if r.status_code != 200:
+            raise HTTPException(status_code=400, detail=f"Failed to list calendars: {r.text[:200]}")
+        for item in r.json().get("items", []):
+            role = item.get("accessRole", "")
+            if role not in ("owner", "writer"):
+                continue
+            calendars.append({
+                "id": item["id"],
+                "name": item.get("summary") or "Calendar",
+                "is_primary": bool(item.get("primary")),
+                "is_current": (current_default == item["id"]) or (current_default == "primary" and item.get("primary")),
+            })
+    return {"calendars": calendars}
+
+
+class SetDefaultCalendar(BaseModel):
+    calendar_id: str
+    calendar_name: Optional[str] = None
+
+
+@api_router.post("/calendar/set_default/{provider}")
+async def set_default_calendar(provider: str, payload: SetDefaultCalendar, background: BackgroundTasks, current_user: dict = Depends(get_current_user)):
+    if provider not in ("google", "microsoft"):
+        raise HTTPException(status_code=400, detail="Invalid provider")
+    token = await _get_calendar_token(current_user["id"], provider)
+    if not token:
+        raise HTTPException(status_code=400, detail=f"{provider} not connected")
+    old_cal_id = token.get("default_calendar_id")
+    new_cal_id = payload.calendar_id
+
+    if old_cal_id == new_cal_id:
+        return {"ok": True, "unchanged": True, "moved": 0}
+
+    field = "microsoft_event_id" if provider == "microsoft" else "google_event_id"
+    bills_with_events = await db.bills.find({"user_id": current_user["id"], field: {"$exists": True, "$ne": None}}, {"_id": 0}).to_list(2000)
+
+    # Delete events from OLD calendar first (uses current default_calendar_id)
+    for b in bills_with_events:
+        try:
+            if provider == "microsoft":
+                await _ms_delete_event(current_user["id"], b)
+            else:
+                await _google_delete_event(current_user["id"], b)
+        except Exception as e:
+            logger.warning("delete during cal switch failed: %s", e)
+
+    # Clear external event IDs from bills (so they get recreated)
+    await db.bills.update_many(
+        {"user_id": current_user["id"], field: {"$exists": True}},
+        {"$unset": {field: ""}},
+    )
+
+    # Update default calendar id (and name for display)
+    update = {"default_calendar_id": new_cal_id}
+    if payload.calendar_name:
+        update["default_calendar_name"] = payload.calendar_name
+    await _upsert_calendar_token(current_user["id"], provider, update)
+
+    # Background: re-push all bills to NEW calendar
+    moved = len(bills_with_events)
+
+    async def repush():
+        all_bills = await db.bills.find({"user_id": current_user["id"]}, {"_id": 0}).to_list(2000)
+        for bill in all_bills:
+            await _sync_bill_update(current_user["id"], bill["id"])
+
+    background.add_task(repush)
+    return {"ok": True, "moved": moved, "calendar_id": new_cal_id}
 
 
 # ---------- Event push helpers ----------

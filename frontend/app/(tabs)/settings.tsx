@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  Modal,
+  FlatList,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -19,10 +21,15 @@ import { useTheme, SPACING, RADIUS } from "@/src/theme";
 import { ensureNotificationPermission } from "@/src/notifications";
 import { api, oauthUrl } from "@/src/api/client";
 
-type CalStatus = {
-  google: { connected: boolean; connected_at: string | null; configured: boolean };
-  microsoft: { connected: boolean; connected_at: string | null; configured: boolean };
+type ProviderState = {
+  connected: boolean;
+  connected_at: string | null;
+  configured: boolean;
+  default_calendar_id: string | null;
+  default_calendar_name: string | null;
 };
+type CalStatus = { google: ProviderState; microsoft: ProviderState };
+type ExternalCalendar = { id: string; name: string; is_primary: boolean; is_current: boolean };
 
 export default function SettingsScreen() {
   const theme = useTheme();
@@ -31,6 +38,10 @@ export default function SettingsScreen() {
   const [calStatus, setCalStatus] = useState<CalStatus | null>(null);
   const [calLoading, setCalLoading] = useState(false);
   const [busyProvider, setBusyProvider] = useState<string | null>(null);
+  const [pickerProvider, setPickerProvider] = useState<"google" | "microsoft" | null>(null);
+  const [pickerCalendars, setPickerCalendars] = useState<ExternalCalendar[] | null>(null);
+  const [pickerLoading, setPickerLoading] = useState(false);
+  const [picking, setPicking] = useState(false);
 
   const loadCalStatus = useCallback(async () => {
     if (!token) return;
@@ -153,6 +164,49 @@ export default function SettingsScreen() {
     }
   };
 
+  const openPicker = async (provider: "google" | "microsoft") => {
+    if (!token) return;
+    setPickerProvider(provider);
+    setPickerCalendars(null);
+    setPickerLoading(true);
+    try {
+      const r = await api.listExternalCalendars(token, provider);
+      setPickerCalendars(r.calendars);
+    } catch (e: any) {
+      const msg = e?.message || "Failed to load calendars";
+      if (Platform.OS === "web") window.alert(msg);
+      else Alert.alert("Error", msg);
+      setPickerProvider(null);
+    } finally {
+      setPickerLoading(false);
+    }
+  };
+
+  const selectCalendar = async (cal: ExternalCalendar) => {
+    if (!token || !pickerProvider) return;
+    setPicking(true);
+    try {
+      const r = await api.setDefaultCalendar(token, pickerProvider, cal.id, cal.name);
+      setPickerProvider(null);
+      setPickerCalendars(null);
+      await loadCalStatus();
+      const provLabel = pickerProvider === "microsoft" ? "Outlook" : "Google";
+      if (r.unchanged) {
+        // no-op
+      } else {
+        const msg = `Moved ${r.moved} bill${r.moved === 1 ? "" : "s"} to "${cal.name}" in ${provLabel}.`;
+        if (Platform.OS === "web") window.alert(msg);
+        else Alert.alert("Calendar changed", msg);
+      }
+    } catch (e: any) {
+      const msg = e?.message || "Failed to change calendar";
+      if (Platform.OS === "web") window.alert(msg);
+      else Alert.alert("Error", msg);
+    } finally {
+      setPicking(false);
+    }
+  };
+
   const SettingRow = ({ icon, label, value, onPress, rightEl }: any) => (
     <Pressable
       onPress={onPress}
@@ -178,47 +232,64 @@ export default function SettingsScreen() {
     iconColor: string;
     label: string;
     provider: "google" | "microsoft";
-    state: { connected: boolean; configured: boolean; connected_at: string | null };
+    state: ProviderState;
   }) => {
     const isBusy = busyProvider === provider;
     return (
-      <View style={[s.row, { backgroundColor: theme.surfaceSecondary, borderColor: theme.border, alignItems: "center" }]}>
-        <View style={[s.iconWrap, { backgroundColor: iconColor + "22" }]}>
-          <Ionicons name={icon} size={18} color={iconColor} />
+      <View>
+        <View style={[s.row, { backgroundColor: theme.surfaceSecondary, borderColor: theme.border, alignItems: "center", marginBottom: state.connected ? 0 : SPACING.sm, borderBottomLeftRadius: state.connected ? 0 : RADIUS.md, borderBottomRightRadius: state.connected ? 0 : RADIUS.md }]}>
+          <View style={[s.iconWrap, { backgroundColor: iconColor + "22" }]}>
+            <Ionicons name={icon} size={18} color={iconColor} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[s.label, { color: theme.onSurface }]}>{label}</Text>
+            <Text style={{ color: state.connected ? theme.success ?? "#16a34a" : theme.onSurfaceSecondary, fontSize: 12, marginTop: 2 }}>
+              {!state.configured
+                ? "Not configured on server"
+                : state.connected
+                ? "Connected · Auto-syncing"
+                : "Tap Connect to enable sync"}
+            </Text>
+          </View>
+          {isBusy ? (
+            <ActivityIndicator color={theme.brandPrimary} />
+          ) : state.connected ? (
+            <Pressable
+              onPress={() => handleDisconnect(provider)}
+              style={[s.actionBtn, { borderColor: theme.borderStrong }]}
+              testID={`disconnect-${provider}`}
+            >
+              <Text style={{ color: theme.error, fontSize: 13, fontWeight: "500" }}>Disconnect</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={() => state.configured && handleConnect(provider)}
+              disabled={!state.configured}
+              style={[
+                s.actionBtn,
+                { borderColor: theme.brandPrimary, backgroundColor: state.configured ? theme.brandPrimary : theme.borderStrong, opacity: state.configured ? 1 : 0.5 },
+              ]}
+              testID={`connect-${provider}`}
+            >
+              <Text style={{ color: theme.onBrandPrimary, fontSize: 13, fontWeight: "500" }}>Connect</Text>
+            </Pressable>
+          )}
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[s.label, { color: theme.onSurface }]}>{label}</Text>
-          <Text style={{ color: state.connected ? theme.success ?? "#16a34a" : theme.onSurfaceSecondary, fontSize: 12, marginTop: 2 }}>
-            {!state.configured
-              ? "Not configured on server"
-              : state.connected
-              ? "Connected · Auto-syncing"
-              : "Tap Connect to enable sync"}
-          </Text>
-        </View>
-        {isBusy ? (
-          <ActivityIndicator color={theme.brandPrimary} />
-        ) : state.connected ? (
+        {state.connected ? (
           <Pressable
-            onPress={() => handleDisconnect(provider)}
-            style={[s.actionBtn, { borderColor: theme.borderStrong }]}
-            testID={`disconnect-${provider}`}
+            onPress={() => openPicker(provider)}
+            style={[s.subRow, { backgroundColor: theme.surfaceSecondary, borderColor: theme.border }]}
+            testID={`pick-calendar-${provider}`}
           >
-            <Text style={{ color: theme.error, fontSize: 13, fontWeight: "500" }}>Disconnect</Text>
+            <Ionicons name="calendar-outline" size={16} color={theme.onSurfaceSecondary} />
+            <Text style={{ color: theme.onSurfaceSecondary, fontSize: 13, marginLeft: 8 }}>Sync to:</Text>
+            <Text style={{ color: theme.onSurface, fontSize: 13, fontWeight: "500", marginLeft: 6, flex: 1 }} numberOfLines={1}>
+              {state.default_calendar_name || (provider === "microsoft" ? "Primary calendar" : "Primary")}
+            </Text>
+            <Text style={{ color: theme.brandPrimary, fontSize: 13, fontWeight: "500", marginRight: 4 }}>Change</Text>
+            <Ionicons name="chevron-forward" size={16} color={theme.brandPrimary} />
           </Pressable>
-        ) : (
-          <Pressable
-            onPress={() => state.configured && handleConnect(provider)}
-            disabled={!state.configured}
-            style={[
-              s.actionBtn,
-              { borderColor: theme.brandPrimary, backgroundColor: state.configured ? theme.brandPrimary : theme.borderStrong, opacity: state.configured ? 1 : 0.5 },
-            ]}
-            testID={`connect-${provider}`}
-          >
-            <Text style={{ color: theme.onBrandPrimary, fontSize: 13, fontWeight: "500" }}>Connect</Text>
-          </Pressable>
-        )}
+        ) : null}
       </View>
     );
   };
@@ -318,6 +389,73 @@ export default function SettingsScreen() {
 
         <Text style={{ color: theme.info, textAlign: "center", marginTop: SPACING.xl, fontSize: 12 }}>BillCal v1.0</Text>
       </ScrollView>
+
+      <Modal
+        visible={pickerProvider !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPickerProvider(null)}
+      >
+        <Pressable style={s.modalBackdrop} onPress={() => !picking && setPickerProvider(null)}>
+          <Pressable style={[s.modalSheet, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={(e) => e.stopPropagation()}>
+            <View style={s.modalHandle} />
+            <Text style={[s.modalTitle, { color: theme.onSurface }]}>
+              Choose {pickerProvider === "microsoft" ? "Outlook" : "Google"} calendar
+            </Text>
+            <Text style={[s.modalHint, { color: theme.onSurfaceSecondary }]}>
+              Existing bill events will be moved from the current calendar to the one you pick.
+            </Text>
+            {pickerLoading || !pickerCalendars ? (
+              <View style={{ padding: SPACING.xl }}>
+                <ActivityIndicator color={theme.brandPrimary} />
+              </View>
+            ) : (
+              <FlatList
+                data={pickerCalendars}
+                keyExtractor={(c) => c.id}
+                style={{ maxHeight: 380 }}
+                ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: theme.border, marginHorizontal: SPACING.md }} />}
+                renderItem={({ item }) => (
+                  <Pressable
+                    onPress={() => !picking && selectCalendar(item)}
+                    style={s.calItem}
+                    testID={`cal-option-${item.id}`}
+                  >
+                    <Ionicons
+                      name={item.is_current ? "radio-button-on" : "radio-button-off"}
+                      size={22}
+                      color={item.is_current ? theme.brandPrimary : theme.onSurfaceSecondary}
+                    />
+                    <View style={{ flex: 1, marginLeft: SPACING.md }}>
+                      <Text style={{ color: theme.onSurface, fontSize: 15, fontWeight: "500" }}>
+                        {item.name}
+                      </Text>
+                      {item.is_primary ? (
+                        <Text style={{ color: theme.onSurfaceSecondary, fontSize: 11, marginTop: 2 }}>
+                          Primary calendar
+                        </Text>
+                      ) : null}
+                    </View>
+                    {item.is_current ? (
+                      <Text style={{ color: theme.brandPrimary, fontSize: 12, fontWeight: "500" }}>Current</Text>
+                    ) : null}
+                  </Pressable>
+                )}
+              />
+            )}
+            {picking ? (
+              <View style={{ paddingVertical: SPACING.md, flexDirection: "row", justifyContent: "center", alignItems: "center" }}>
+                <ActivityIndicator color={theme.brandPrimary} />
+                <Text style={{ color: theme.onSurfaceSecondary, marginLeft: 10, fontSize: 13 }}>Moving bills to new calendar…</Text>
+              </View>
+            ) : (
+              <Pressable onPress={() => setPickerProvider(null)} style={[s.modalCancel, { borderColor: theme.border }]} testID="cal-picker-cancel">
+                <Text style={{ color: theme.onSurfaceSecondary, fontSize: 15, fontWeight: "500" }}>Cancel</Text>
+              </Pressable>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -376,5 +514,66 @@ const s = StyleSheet.create({
     borderWidth: 1,
     marginTop: SPACING.xs,
     marginBottom: SPACING.sm,
+  },
+  subRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 10,
+    borderRadius: RADIUS.md,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+    borderWidth: 1,
+    borderTopWidth: 0,
+    marginBottom: SPACING.sm,
+    minHeight: 40,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: SPACING.md,
+    paddingBottom: SPACING.xl,
+    paddingTop: SPACING.sm,
+  },
+  modalHandle: {
+    alignSelf: "center",
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#94a3b8",
+    marginVertical: SPACING.xs,
+    marginBottom: SPACING.md,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: 4,
+    paddingHorizontal: SPACING.xs,
+  },
+  modalHint: {
+    fontSize: 12,
+    marginBottom: SPACING.md,
+    paddingHorizontal: SPACING.xs,
+    lineHeight: 16,
+  },
+  calItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: SPACING.md,
+    minHeight: 56,
+  },
+  modalCancel: {
+    marginTop: SPACING.md,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
   },
 });

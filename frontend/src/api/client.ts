@@ -67,8 +67,8 @@ export const api = {
     request<{ ok: boolean; last_synced: string; transactions_synced: number }>("/bank/sync", token, { method: "POST" }),
   calendarStatus: (token: string) =>
     request<{
-      google: { connected: boolean; connected_at: string | null; configured: boolean };
-      microsoft: { connected: boolean; connected_at: string | null; configured: boolean };
+      google: { connected: boolean; connected_at: string | null; configured: boolean; default_calendar_id: string | null; default_calendar_name: string | null };
+      microsoft: { connected: boolean; connected_at: string | null; configured: boolean; default_calendar_id: string | null; default_calendar_name: string | null };
     }>("/calendar/status", token),
   calendarDisconnect: (token: string, provider: "google" | "microsoft") =>
     request<{ ok: boolean }>(`/calendar/disconnect/${provider}`, token, { method: "POST" }),
@@ -77,6 +77,17 @@ export const api = {
       "/calendar/sync_all",
       token,
       { method: "POST" }
+    ),
+  listExternalCalendars: (token: string, provider: "google" | "microsoft") =>
+    request<{ calendars: { id: string; name: string; is_primary: boolean; is_current: boolean }[] }>(
+      `/calendar/list/${provider}`,
+      token
+    ),
+  setDefaultCalendar: (token: string, provider: "google" | "microsoft", calendar_id: string, calendar_name?: string) =>
+    request<{ ok: boolean; moved: number; unchanged?: boolean }>(
+      `/calendar/set_default/${provider}`,
+      token,
+      { method: "POST", body: JSON.stringify({ calendar_id, calendar_name }) }
     ),
 };
 
