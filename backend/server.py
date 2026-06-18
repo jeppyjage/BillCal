@@ -813,6 +813,16 @@ async def set_default_calendar(provider: str, payload: SetDefaultCalendar, backg
 
 
 # ---------- Event push helpers ----------
+def _format_event_title(bill_doc: dict) -> str:
+    amt = float(bill_doc.get("amount", 0))
+    # Format as $84.50 or $1,450 (drop cents if whole dollars to match in-app pill)
+    if amt == int(amt):
+        amt_str = f"${int(amt):,}"
+    else:
+        amt_str = f"${amt:,.2f}"
+    return f"{amt_str} {bill_doc.get('title', 'Bill')}"
+
+
 def _bill_event_body_google(bill_doc: dict) -> dict:
     due = bill_doc["due_date"]
     try:
@@ -820,15 +830,16 @@ def _bill_event_body_google(bill_doc: dict) -> dict:
     except Exception:
         d = datetime.now(timezone.utc).date()
     end = (d + timedelta(days=1)).isoformat()
-    desc = f"Amount due: ${float(bill_doc['amount']):.2f}\nCategory: {bill_doc.get('category', 'Other')}"
+    desc = f"Category: {bill_doc.get('category', 'Other')}"
     if bill_doc.get("notes"):
         desc += f"\n\n{bill_doc['notes']}"
     return {
-        "summary": f"💰 {bill_doc['title']}",
+        "summary": _format_event_title(bill_doc),
         "description": desc,
         "start": {"date": d.isoformat()},
         "end": {"date": end},
         "reminders": {"useDefault": False, "overrides": [{"method": "popup", "minutes": 1440}]},
+        "colorId": "6",  # Tangerine / orange
         "source": {"title": "BillCal", "url": "https://billcal.app"},
     }
 
@@ -840,11 +851,11 @@ def _bill_event_body_ms(bill_doc: dict) -> dict:
     except Exception:
         d = datetime.now(timezone.utc).date()
     end = d + timedelta(days=1)
-    desc = f"Amount due: ${float(bill_doc['amount']):.2f}<br/>Category: {bill_doc.get('category', 'Other')}"
+    desc = f"Category: {bill_doc.get('category', 'Other')}"
     if bill_doc.get("notes"):
         desc += f"<br/><br/>{bill_doc['notes']}"
     return {
-        "subject": f"💰 {bill_doc['title']}",
+        "subject": _format_event_title(bill_doc),
         "body": {"contentType": "HTML", "content": desc},
         "isAllDay": True,
         "start": {"dateTime": f"{d.isoformat()}T00:00:00", "timeZone": "UTC"},
@@ -853,6 +864,36 @@ def _bill_event_body_ms(bill_doc: dict) -> dict:
         "reminderMinutesBeforeStart": 1440,
         "categories": ["BillCal"],
     }
+
+
+# Cache: per-user flag so we only POST master category once per session
+_MS_CATEGORY_ENSURED: set = set()
+
+
+async def _ms_ensure_billcal_category(user_id: str) -> None:
+    """Ensure a master category 'BillCal' with orange color exists in the user's mailbox.
+    Without this, the `categories: ['BillCal']` on events won't render with a color.
+    Idempotent: a single 409 on create means it already exists."""
+    if user_id in _MS_CATEGORY_ENSURED:
+        return
+    access = await _get_valid_access_token(user_id, "microsoft")
+    if not access:
+        return
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as c:
+            r = await c.post(
+                f"{MS_GRAPH_BASE}/me/outlook/masterCategories",
+                headers={"Authorization": f"Bearer {access}", "Content-Type": "application/json"},
+                json={"displayName": "BillCal", "color": "preset1"},  # preset1 = Orange
+            )
+        if r.status_code in (200, 201, 409):
+            _MS_CATEGORY_ENSURED.add(user_id)
+        else:
+            logger.info("ms ensure category: %s %s", r.status_code, r.text[:200])
+            # Mark as ensured anyway so we don't spam (some accounts disallow this endpoint)
+            _MS_CATEGORY_ENSURED.add(user_id)
+    except Exception as e:
+        logger.warning("ms category ensure failed: %s", e)
 
 
 async def _google_create_event(user_id: str, bill_doc: dict) -> Optional[str]:
@@ -912,6 +953,8 @@ async def _ms_create_event(user_id: str, bill_doc: dict) -> Optional[str]:
     access = await _get_valid_access_token(user_id, "microsoft")
     if not access:
         return None
+    # Ensure the orange "BillCal" master category exists so events render in orange
+    await _ms_ensure_billcal_category(user_id)
     token = await _get_calendar_token(user_id, "microsoft")
     cal_id = (token or {}).get("default_calendar_id")
     # If a specific calendar is selected, post to /me/calendars/{id}/events; else default to /me/calendar/events
