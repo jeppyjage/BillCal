@@ -1172,7 +1172,7 @@ BUILT_IN_RULES: List[dict] = [
     {"pattern": "salary",         "category": "Income"},
     {"pattern": "payroll",        "category": "Income"},
     {"pattern": "deposit",        "category": "Income"},
-    {"pattern": "venmo",          "category": "Transportation"},  # often p2p
+    {"pattern": "venmo",          "category": "Other"},  # often p2p — neutral default
     {"pattern": "amazon",         "category": "Shopping"},
     {"pattern": "target",         "category": "Shopping"},
     {"pattern": "best buy",       "category": "Shopping"},
