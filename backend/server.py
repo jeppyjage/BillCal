@@ -815,12 +815,12 @@ async def set_default_calendar(provider: str, payload: SetDefaultCalendar, backg
 # ---------- Event push helpers ----------
 def _format_event_title(bill_doc: dict) -> str:
     amt = float(bill_doc.get("amount", 0))
-    # Format as $84.50 or $1,450 (drop cents if whole dollars to match in-app pill)
+    # Format as (-$65) or (-$1,450) — drop cents if whole dollars to match in-app pill
     if amt == int(amt):
-        amt_str = f"${int(amt):,}"
+        amt_str = f"-${int(amt):,}"
     else:
-        amt_str = f"${amt:,.2f}"
-    return f"{amt_str} {bill_doc.get('title', 'Bill')}"
+        amt_str = f"-${amt:,.2f}"
+    return f"({amt_str}) {bill_doc.get('title', 'Bill')}"
 
 
 def _bill_event_body_google(bill_doc: dict) -> dict:
