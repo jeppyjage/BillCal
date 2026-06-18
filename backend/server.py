@@ -912,9 +912,13 @@ async def _ms_create_event(user_id: str, bill_doc: dict) -> Optional[str]:
     access = await _get_valid_access_token(user_id, "microsoft")
     if not access:
         return None
+    token = await _get_calendar_token(user_id, "microsoft")
+    cal_id = (token or {}).get("default_calendar_id")
+    # If a specific calendar is selected, post to /me/calendars/{id}/events; else default to /me/calendar/events
+    path = f"/me/calendars/{cal_id}/events" if cal_id else "/me/calendar/events"
     async with httpx.AsyncClient(timeout=20.0) as c:
         r = await c.post(
-            f"{MS_GRAPH_BASE}/me/calendar/events",
+            f"{MS_GRAPH_BASE}{path}",
             headers={"Authorization": f"Bearer {access}", "Content-Type": "application/json"},
             json=_bill_event_body_ms(bill_doc),
         )
@@ -1020,7 +1024,9 @@ async def _sync_bill_delete(user_id: str, bill_doc: dict):
 
 @api_router.post("/calendar/sync_all")
 async def calendar_sync_all(background: BackgroundTasks, current_user: dict = Depends(get_current_user)):
-    """Force-push all of the user's bills to connected providers (creates events for any not yet synced)."""
+    """Force-push all of the user's bills to connected providers.
+    Always performs a full re-push: deletes existing events first (so they move to the currently selected calendar),
+    clears stale event IDs, then re-creates each event in the user's current default calendar."""
     google_connected = bool(await _get_calendar_token(current_user["id"], "google"))
     ms_connected = bool(await _get_calendar_token(current_user["id"], "microsoft"))
     if not google_connected and not ms_connected:
@@ -1028,8 +1034,33 @@ async def calendar_sync_all(background: BackgroundTasks, current_user: dict = De
     bills = await db.bills.find({"user_id": current_user["id"]}, {"_id": 0}).to_list(2000)
 
     async def push():
+        # 1. Delete existing events first so we don't leave orphans in old calendars
         for b in bills:
-            await _sync_bill_update(current_user["id"], b["id"])
+            try:
+                if google_connected and b.get("google_event_id"):
+                    await _google_delete_event(current_user["id"], b)
+            except Exception as e:
+                logger.warning("sync_all: google delete failed: %s", e)
+            try:
+                if ms_connected and b.get("microsoft_event_id"):
+                    await _ms_delete_event(current_user["id"], b)
+            except Exception as e:
+                logger.warning("sync_all: ms delete failed: %s", e)
+        # 2. Clear stale event IDs from all bills
+        unset_fields: dict = {}
+        if google_connected:
+            unset_fields["google_event_id"] = ""
+        if ms_connected:
+            unset_fields["microsoft_event_id"] = ""
+        if unset_fields:
+            await db.bills.update_many(
+                {"user_id": current_user["id"]},
+                {"$unset": unset_fields},
+            )
+        # 3. Re-create each bill in the currently selected calendar
+        fresh_bills = await db.bills.find({"user_id": current_user["id"]}, {"_id": 0}).to_list(2000)
+        for bill in fresh_bills:
+            await _sync_bill_update(current_user["id"], bill["id"])
 
     background.add_task(push)
     return {"ok": True, "scheduled": len(bills), "google": google_connected, "microsoft": ms_connected}
