@@ -89,6 +89,26 @@ export const api = {
       token,
       { method: "POST", body: JSON.stringify({ calendar_id, calendar_name }) }
     ),
+  listCategories: (token: string) =>
+    request<{ defaults: string[]; custom: string[]; all: string[] }>("/categories", token),
+  createCategory: (token: string, name: string) =>
+    request<{ ok: boolean; name: string }>("/categories", token, { method: "POST", body: JSON.stringify({ name }) }),
+  deleteCategory: (token: string, name: string) =>
+    request<{ ok: boolean }>(`/categories/${encodeURIComponent(name)}`, token, { method: "DELETE" }),
+  listRules: (token: string) =>
+    request<{ user_rules: { id: string; pattern: string; category: string; created_at: string }[]; built_in: { pattern: string; category: string }[] }>(
+      "/category_rules",
+      token
+    ),
+  createRule: (token: string, pattern: string, category: string) =>
+    request<{ ok: boolean; id: string }>("/category_rules", token, {
+      method: "POST",
+      body: JSON.stringify({ pattern, category }),
+    }),
+  deleteRule: (token: string, id: string) =>
+    request<{ ok: boolean }>(`/category_rules/${id}`, token, { method: "DELETE" }),
+  recategorizeAll: (token: string) =>
+    request<{ ok: boolean; scanned: number; updated: number }>("/transactions/recategorize", token, { method: "POST" }),
 };
 
 export const oauthUrl = (provider: "google" | "microsoft", token: string) =>

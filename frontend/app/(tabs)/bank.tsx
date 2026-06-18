@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, router } from "expo-router";
 import { useAuth } from "@/src/context/AuthContext";
 import { useTheme, SPACING, RADIUS } from "@/src/theme";
 import { api, BankAccount, BankTransaction } from "@/src/api/client";
@@ -23,6 +23,7 @@ export default function BankScreen() {
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [insightMode, setInsightMode] = useState<"category" | "merchant">("category");
+  const [selectedSlice, setSelectedSlice] = useState<string | null>(null);
 
   const insightData = useMemo(() => {
     const groups: Record<string, number> = {};
@@ -122,7 +123,7 @@ export default function BankScreen() {
                     <Pressable
                       key={mode}
                       testID={`insight-${mode}`}
-                      onPress={() => setInsightMode(mode)}
+                      onPress={() => { setInsightMode(mode); setSelectedSlice(null); }}
                       style={[s.toggleBtn, { backgroundColor: active ? theme.brandPrimary : theme.surfaceTertiary, borderColor: active ? theme.brandPrimary : theme.border }]}
                     >
                       <Text style={{ color: active ? theme.onBrandPrimary : theme.onSurface, fontSize: 12, fontWeight: "500", textTransform: "capitalize" }}>By {mode}</Text>
@@ -130,7 +131,14 @@ export default function BankScreen() {
                   );
                 })}
               </View>
-              <PieChart data={insightData} onColor={theme.onSurface} secondaryColor={theme.surfaceSecondary} />
+              <PieChart
+                data={insightData}
+                onColor={theme.onSurface}
+                secondaryColor={theme.surfaceSecondary}
+                selectedLabel={selectedSlice}
+                onSlicePress={setSelectedSlice}
+                onCenterPress={(label) => router.push({ pathname: "/insights/[key]", params: { key: label, mode: insightMode } })}
+              />
             </View>
 
             <Text style={[s.sectionTitle, { color: theme.onSurface, marginTop: SPACING.xl }]}>Recent Activity</Text>

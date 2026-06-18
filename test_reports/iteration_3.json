@@ -1,0 +1,43 @@
+{
+  "summary": "Backend-only testing of new Category Management + Auto-categorization + Drill-down feature endpoints. All 24 new tests PASSED (test_categories.py). Full regression of 42 prior tests (test_billcal_api.py, test_calendar_sync.py, test_calendar_picker.py) also PASSED. Grand total: 66/66 (100%). Verified: (1) GET /api/categories returns exact list of 14 defaults [Rent & Utilities, Internet, Phone, Subscriptions, Insurance, Credit Card, Food, Groceries, Transportation, Shopping, Health, Entertainment, Income, Other] plus custom+all keys with correct shape; (2) POST /api/categories creates 'Pets' returning {ok:true,name:'Pets'} and persists in GET; (3) duplicate of default 'Rent & Utilities' -> 400 'Category already exists as a default'; (4) duplicate custom 'Pets' -> 400 'Category already exists'; (5) empty name -> 400 'Name required'; (6) DELETE /api/categories/Pets -> {ok:true} and removed from GET; (7) DELETE /api/categories/Rent%20%26%20Utilities -> 400 'Cannot delete built-in category'; (8) DELETE non-existent -> 404; (9) GET /api/category_rules returns user_rules + 53 built-in entries with {pattern,category} shape, sample rules spotify->Subscriptions, whole foods->Groceries, uber->Transportation verified; (10) POST /api/category_rules petsmart->Pets returns {ok:true,id:<uuid>} and appears in user_rules; (11) empty pattern -> 400; (12) DELETE /api/category_rules/{id} -> {ok:true}; (13) DELETE invalid rule -> 404; (14) POST /api/transactions/recategorize -> {ok:true,scanned:N,updated:M}, demo user transactions Spotify Premium=Subscriptions, Whole Foods Market=Groceries, Salary - Acme Corp=Income, Electricity - Powerlink=Rent & Utilities all confirmed; (15) Brand-new signup (testautocat+<ts>@billcal.app) has seeded transactions auto-categorized via rules: Spotify=Subscriptions, Whole Foods=Groceries, Salary=Income, Electricity=Rent & Utilities, Netflix=Subscriptions, Internet - Fastnet=Internet (rule override of seeded category), Coffee=Food, Rent=Rent & Utilities; (16) Regression: calendar/status, bills CRUD, bills.google_event_id/microsoft_event_id nullable, bank/accounts, bank/transactions, bills/auto_detect, oauth start (google+microsoft return 307 redirect), calendar/sync_all, calendar/list/microsoft (400 not connected), calendar/disconnect/microsoft all still working. test_credentials.md verified accurate (demo@billcal.app/demo1234).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_categories.py",
+    "/app/backend/tests/test_calendar_picker.py",
+    "/app/backend/tests/test_calendar_sync.py",
+    "/app/backend/tests/test_billcal_api.py",
+    "/app/test_reports/pytest/categories_results.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py has grown to 1402 lines. Categories/rules logic (lines 1112-1297) should be split into its own module (e.g. backend/categories.py) for maintainability; calendar/oauth code is also a candidate (>500 lines).",
+    "recategorize_all_transactions (line 1283) treats positive-amount transactions inconsistently: it only re-tags them as 'Income' when description contains salary/payroll/deposit, otherwise it preserves the existing category. This means a positive-amount tx with description 'Refund - Amazon' won't be re-evaluated against the 'amazon' Shopping rule. Document or expand income detection.",
+    "BUILT_IN_RULES (line 1131): 'venmo' is mapped to 'Transportation' with a code comment 'often p2p'. Venmo p2p transactions are NOT transportation. Suggest 'Other' or removing the rule entirely.",
+    "BUILT_IN_RULES 'att ' pattern has a trailing space (line 1167) which is fragile; description must contain 'att ' (with space) to match. Consider word-boundary regex or simply 'at&t'.",
+    "Category name validation in POST /api/categories accepts any string length (no max). A 10MB category name would be accepted. Add Pydantic max_length constraint (e.g. 64 chars).",
+    "DELETE /api/categories/{name} does not check if bills/transactions still reference the category. After deletion, those records will silently retain a 'dangling' category name. Consider either cascading rename to 'Other' or warning the user.",
+    "POST /api/category_rules has no max length on pattern, no de-duplication (same pattern can be created multiple times), and no validation that category is one of the user's known categories. Adding a duplicate pattern is silently allowed and only first match wins."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_categories.py (new — 24 tests)"
+  ],
+  "success_rate": {
+    "backend": "100% (66/66 total; 24/24 new + 42/42 regression)",
+    "frontend": "not tested (per request)"
+  },
+  "seed_data_creation": "Created and torn down: custom category 'Pets', user rule petsmart->Pets, transient rule tempmart_test_delete. Also registered one transient new user testautocat+<timestamp>@billcal.app/test1234 to validate auto-categorization on signup (no cleanup endpoint exists for users; harmless test data).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All Category/Rule/Recategorize endpoints verified against PUBLIC URL https://bill-reminder-hub-6.preview.emergentagent.com/api with demo user (demo@billcal.app/demo1234). Tests live in /app/backend/tests/test_categories.py and are idempotent (autouse fixture cleans up 'Pets' before & after). To re-run: `pytest backend/tests/test_categories.py -v`. Note: oauth start endpoints are at /api/oauth/{provider}/start (NOT /api/calendar/oauth/...) and require ?token=<jwt> query param, not Bearer header. test_credentials.md is accurate.",
+  "rca_of_issue": "N/A — no bugs found in new feature set."
+}

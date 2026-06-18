@@ -1109,6 +1109,194 @@ async def calendar_sync_all(background: BackgroundTasks, current_user: dict = De
     return {"ok": True, "scheduled": len(bills), "google": google_connected, "microsoft": ms_connected}
 
 
+# ---------- Categories & Auto-categorization ----------
+DEFAULT_CATEGORIES = [
+    "Rent & Utilities",
+    "Internet",
+    "Phone",
+    "Subscriptions",
+    "Insurance",
+    "Credit Card",
+    "Food",
+    "Groceries",
+    "Transportation",
+    "Shopping",
+    "Health",
+    "Entertainment",
+    "Income",
+    "Other",
+]
+
+# Built-in auto-categorize rules: substring -> category (case-insensitive). Order matters.
+BUILT_IN_RULES: List[dict] = [
+    {"pattern": "spotify",        "category": "Subscriptions"},
+    {"pattern": "netflix",        "category": "Subscriptions"},
+    {"pattern": "hulu",           "category": "Subscriptions"},
+    {"pattern": "disney",         "category": "Subscriptions"},
+    {"pattern": "apple.com/bill", "category": "Subscriptions"},
+    {"pattern": "youtube premium","category": "Subscriptions"},
+    {"pattern": "amazon prime",   "category": "Subscriptions"},
+    {"pattern": "whole foods",    "category": "Groceries"},
+    {"pattern": "trader joe",     "category": "Groceries"},
+    {"pattern": "kroger",         "category": "Groceries"},
+    {"pattern": "safeway",        "category": "Groceries"},
+    {"pattern": "costco",         "category": "Groceries"},
+    {"pattern": "walmart",        "category": "Groceries"},
+    {"pattern": "coffee",         "category": "Food"},
+    {"pattern": "starbucks",      "category": "Food"},
+    {"pattern": "doordash",       "category": "Food"},
+    {"pattern": "uber eats",      "category": "Food"},
+    {"pattern": "grubhub",        "category": "Food"},
+    {"pattern": "mcdonald",       "category": "Food"},
+    {"pattern": "chipotle",       "category": "Food"},
+    {"pattern": "uber",           "category": "Transportation"},
+    {"pattern": "lyft",           "category": "Transportation"},
+    {"pattern": "shell",          "category": "Transportation"},
+    {"pattern": "chevron",        "category": "Transportation"},
+    {"pattern": "exxon",          "category": "Transportation"},
+    {"pattern": "electric",       "category": "Rent & Utilities"},
+    {"pattern": "powerlink",      "category": "Rent & Utilities"},
+    {"pattern": "water",          "category": "Rent & Utilities"},
+    {"pattern": "gas company",    "category": "Rent & Utilities"},
+    {"pattern": "rent",           "category": "Rent & Utilities"},
+    {"pattern": "internet",       "category": "Internet"},
+    {"pattern": "fastnet",        "category": "Internet"},
+    {"pattern": "comcast",        "category": "Internet"},
+    {"pattern": "xfinity",        "category": "Internet"},
+    {"pattern": "verizon",        "category": "Phone"},
+    {"pattern": "att ",           "category": "Phone"},
+    {"pattern": "t-mobile",       "category": "Phone"},
+    {"pattern": "insurance",      "category": "Insurance"},
+    {"pattern": "geico",          "category": "Insurance"},
+    {"pattern": "progressive",    "category": "Insurance"},
+    {"pattern": "salary",         "category": "Income"},
+    {"pattern": "payroll",        "category": "Income"},
+    {"pattern": "deposit",        "category": "Income"},
+    {"pattern": "venmo",          "category": "Transportation"},  # often p2p
+    {"pattern": "amazon",         "category": "Shopping"},
+    {"pattern": "target",         "category": "Shopping"},
+    {"pattern": "best buy",       "category": "Shopping"},
+    {"pattern": "cvs",            "category": "Health"},
+    {"pattern": "walgreens",      "category": "Health"},
+    {"pattern": "pharmacy",       "category": "Health"},
+    {"pattern": "movie",          "category": "Entertainment"},
+    {"pattern": "amc theatre",    "category": "Entertainment"},
+]
+
+
+async def _get_user_rules(user_id: str) -> List[dict]:
+    """Returns user custom rules followed by built-in rules. User rules win on first match."""
+    user_rules = await db.category_rules.find({"user_id": user_id}, {"_id": 0}).to_list(500)
+    return user_rules + BUILT_IN_RULES
+
+
+def _apply_rules(description: str, rules: List[dict], fallback: str) -> str:
+    """Match a transaction description against rules. Returns category or fallback."""
+    desc_l = (description or "").lower()
+    for r in rules:
+        pat = (r.get("pattern") or "").lower().strip()
+        if pat and pat in desc_l:
+            return r.get("category", fallback)
+    return fallback
+
+
+class CategoryCreate(BaseModel):
+    name: str
+
+
+class RuleCreate(BaseModel):
+    pattern: str
+    category: str
+
+
+@api_router.get("/categories")
+async def list_categories(current_user: dict = Depends(get_current_user)):
+    custom = await db.categories.find({"user_id": current_user["id"]}, {"_id": 0, "user_id": 0}).to_list(200)
+    custom_names = [c["name"] for c in custom]
+    # union of defaults + custom (de-duped)
+    all_names = list(DEFAULT_CATEGORIES) + [n for n in custom_names if n not in DEFAULT_CATEGORIES]
+    return {
+        "defaults": DEFAULT_CATEGORIES,
+        "custom": custom_names,
+        "all": all_names,
+    }
+
+
+@api_router.post("/categories")
+async def create_category(payload: CategoryCreate, current_user: dict = Depends(get_current_user)):
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name required")
+    if name in DEFAULT_CATEGORIES:
+        raise HTTPException(status_code=400, detail="Category already exists as a default")
+    existing = await db.categories.find_one({"user_id": current_user["id"], "name": name})
+    if existing:
+        raise HTTPException(status_code=400, detail="Category already exists")
+    await db.categories.insert_one({"id": str(uuid.uuid4()), "user_id": current_user["id"], "name": name})
+    return {"ok": True, "name": name}
+
+
+@api_router.delete("/categories/{name}")
+async def delete_category(name: str, current_user: dict = Depends(get_current_user)):
+    if name in DEFAULT_CATEGORIES:
+        raise HTTPException(status_code=400, detail="Cannot delete built-in category")
+    r = await db.categories.delete_one({"user_id": current_user["id"], "name": name})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Category not found")
+    return {"ok": True}
+
+
+@api_router.get("/category_rules")
+async def list_category_rules(current_user: dict = Depends(get_current_user)):
+    user_rules = await db.category_rules.find({"user_id": current_user["id"]}, {"_id": 0, "user_id": 0}).to_list(500)
+    return {
+        "user_rules": user_rules,
+        "built_in": BUILT_IN_RULES,
+    }
+
+
+@api_router.post("/category_rules")
+async def create_rule(payload: RuleCreate, current_user: dict = Depends(get_current_user)):
+    pattern = payload.pattern.strip()
+    category = payload.category.strip()
+    if not pattern or not category:
+        raise HTTPException(status_code=400, detail="Pattern and category required")
+    rule_id = str(uuid.uuid4())
+    await db.category_rules.insert_one({
+        "id": rule_id,
+        "user_id": current_user["id"],
+        "pattern": pattern,
+        "category": category,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"ok": True, "id": rule_id}
+
+
+@api_router.delete("/category_rules/{rule_id}")
+async def delete_rule(rule_id: str, current_user: dict = Depends(get_current_user)):
+    r = await db.category_rules.delete_one({"id": rule_id, "user_id": current_user["id"]})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Rule not found")
+    return {"ok": True}
+
+
+@api_router.post("/transactions/recategorize")
+async def recategorize_all_transactions(current_user: dict = Depends(get_current_user)):
+    """Re-apply rules (user + built-in) to all transactions for the current user."""
+    rules = await _get_user_rules(current_user["id"])
+    txs = await db.bank_transactions.find({"user_id": current_user["id"]}, {"_id": 0}).to_list(2000)
+    updated = 0
+    for t in txs:
+        if t["amount"] >= 0:
+            new_cat = "Income" if any(p in (t.get("description","").lower()) for p in ["salary","payroll","deposit"]) else (t.get("category") or "Income")
+        else:
+            new_cat = _apply_rules(t.get("description", ""), rules, t.get("category") or "Other")
+        if new_cat != t.get("category"):
+            await db.bank_transactions.update_one({"id": t["id"], "user_id": current_user["id"]}, {"$set": {"category": new_cat}})
+            updated += 1
+    return {"ok": True, "scanned": len(txs), "updated": updated}
+
+
 # ---------- Mock Bank Sync ----------
 MOCK_BANKS = [
     {"name": "Everyday Checking", "type": "checking", "masked_number": "****4521", "balance": 3284.55, "institution": "Greenleaf Bank"},
@@ -1136,9 +1324,12 @@ async def seed_mock_bank_for_user(user_id: str):
     await db.bank_accounts.insert_many(accounts)
     txs = []
     today = datetime.now(timezone.utc)
+    rules = await _get_user_rules(user_id)
     for i, tpl in enumerate(MOCK_TX_TEMPLATES):
         desc, amt, cat = tpl
         d = (today - timedelta(days=i * 2)).strftime("%Y-%m-%d")
+        # Apply auto-categorization to override the seeded category when a rule matches
+        final_cat = _apply_rules(desc, rules, cat) if amt < 0 else ("Income" if any(p in desc.lower() for p in ["salary","payroll","deposit"]) else cat)
         txs.append({
             "id": str(uuid.uuid4()),
             "user_id": user_id,
@@ -1146,7 +1337,7 @@ async def seed_mock_bank_for_user(user_id: str):
             "date": d,
             "description": desc,
             "amount": amt,
-            "category": cat,
+            "category": final_cat,
         })
     await db.bank_transactions.insert_many(txs)
 

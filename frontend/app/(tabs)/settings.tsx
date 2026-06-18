@@ -361,6 +361,18 @@ export default function SettingsScreen() {
         ) : null}
 
         <Text style={[s.section, { color: theme.onSurfaceSecondary }]}>Preferences</Text>
+        <Pressable
+          onPress={() => router.push("/settings/categories")}
+          style={[s.row, { backgroundColor: theme.surfaceSecondary, borderColor: theme.border }]}
+          testID="open-categories-rules"
+        >
+          <View style={[s.iconWrap, { backgroundColor: theme.brandTertiary }]}>
+            <Ionicons name="pricetags" size={18} color={theme.onBrandTertiary} />
+          </View>
+          <Text style={[s.label, { color: theme.onSurface }]}>Categories & Rules</Text>
+          <View style={{ flex: 1 }} />
+          <Ionicons name="chevron-forward" size={18} color={theme.onSurfaceSecondary} />
+        </Pressable>
         <SettingRow
           icon="notifications"
           label="Bill Reminders"
