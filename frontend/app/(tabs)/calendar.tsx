@@ -7,6 +7,7 @@ import { useAuth } from "@/src/context/AuthContext";
 import { useTheme, useIsDark, SPACING, RADIUS, CATEGORIES } from "@/src/theme";
 import * as Notifications from "expo-notifications";
 import { api, Bill, BankTransaction } from "@/src/api/client";
+import ShoppingList from "@/src/components/ShoppingList";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["January", "February", "March", "April", "May", "June",
@@ -263,6 +264,7 @@ export default function CalendarScreen() {
             contentContainerStyle={{ paddingBottom: 100 }}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={theme.brandPrimary} />}
           >
+            {token ? <ShoppingList token={token} /> : null}
             {weeks.map((week, weekIdx) => {
               // Calculate week totals: unpaid bills + expense transactions (above threshold)
               let billsTotal = 0;

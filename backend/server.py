@@ -1299,6 +1299,72 @@ async def recategorize_all_transactions(current_user: dict = Depends(get_current
     return {"ok": True, "scanned": len(txs), "updated": updated}
 
 
+# ---------- Shopping List ----------
+class ShoppingItemCreate(BaseModel):
+    name: str
+
+
+class ShoppingItemUpdate(BaseModel):
+    name: Optional[str] = None
+    done: Optional[bool] = None
+
+
+@api_router.get("/shopping_list")
+async def list_shopping_items(current_user: dict = Depends(get_current_user)):
+    items = await db.shopping_list.find({"user_id": current_user["id"]}, {"_id": 0, "user_id": 0}).sort("created_at", 1).to_list(500)
+    return {"items": items}
+
+
+@api_router.post("/shopping_list")
+async def create_shopping_item(payload: ShoppingItemCreate, current_user: dict = Depends(get_current_user)):
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name required")
+    item = {
+        "id": str(uuid.uuid4()),
+        "user_id": current_user["id"],
+        "name": name,
+        "done": False,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.shopping_list.insert_one(item)
+    return {k: v for k, v in item.items() if k != "user_id"}
+
+
+@api_router.put("/shopping_list/{item_id}")
+async def update_shopping_item(item_id: str, payload: ShoppingItemUpdate, current_user: dict = Depends(get_current_user)):
+    updates = {k: v for k, v in payload.dict().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No updates")
+    if "name" in updates:
+        updates["name"] = str(updates["name"]).strip()
+        if not updates["name"]:
+            raise HTTPException(status_code=400, detail="Name cannot be empty")
+    r = await db.shopping_list.find_one_and_update(
+        {"id": item_id, "user_id": current_user["id"]},
+        {"$set": updates},
+        return_document=True,
+        projection={"_id": 0, "user_id": 0},
+    )
+    if not r:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return r
+
+
+@api_router.delete("/shopping_list/{item_id}")
+async def delete_shopping_item(item_id: str, current_user: dict = Depends(get_current_user)):
+    r = await db.shopping_list.delete_one({"id": item_id, "user_id": current_user["id"]})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return {"ok": True}
+
+
+@api_router.post("/shopping_list/clear_done")
+async def clear_done_shopping_items(current_user: dict = Depends(get_current_user)):
+    r = await db.shopping_list.delete_many({"user_id": current_user["id"], "done": True})
+    return {"ok": True, "deleted": r.deleted_count}
+
+
 # ---------- Mock Bank Sync ----------
 MOCK_BANKS = [
     {"name": "Everyday Checking", "type": "checking", "masked_number": "****4521", "balance": 3284.55, "institution": "Greenleaf Bank"},

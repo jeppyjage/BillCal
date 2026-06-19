@@ -109,6 +109,22 @@ export const api = {
     request<{ ok: boolean }>(`/category_rules/${id}`, token, { method: "DELETE" }),
   recategorizeAll: (token: string) =>
     request<{ ok: boolean; scanned: number; updated: number }>("/transactions/recategorize", token, { method: "POST" }),
+  listShoppingItems: (token: string) =>
+    request<{ items: { id: string; name: string; done: boolean; created_at: string }[] }>("/shopping_list", token),
+  createShoppingItem: (token: string, name: string) =>
+    request<{ id: string; name: string; done: boolean; created_at: string }>("/shopping_list", token, {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
+  updateShoppingItem: (token: string, id: string, updates: { name?: string; done?: boolean }) =>
+    request<{ id: string; name: string; done: boolean; created_at: string }>(`/shopping_list/${id}`, token, {
+      method: "PUT",
+      body: JSON.stringify(updates),
+    }),
+  deleteShoppingItem: (token: string, id: string) =>
+    request<{ ok: boolean }>(`/shopping_list/${id}`, token, { method: "DELETE" }),
+  clearDoneShoppingItems: (token: string) =>
+    request<{ ok: boolean; deleted: number }>("/shopping_list/clear_done", token, { method: "POST" }),
 };
 
 export const oauthUrl = (provider: "google" | "microsoft", token: string) =>
