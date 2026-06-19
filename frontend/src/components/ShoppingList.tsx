@@ -13,6 +13,7 @@ export default function ShoppingList({ token }: { token: string }) {
   const [expanded, setExpanded] = useState(true);
   const [newItem, setNewItem] = useState("");
   const [adding, setAdding] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -40,7 +41,11 @@ export default function ShoppingList({ token }: { token: string }) {
       const msg = e?.message || "Failed to add item";
       if (Platform.OS === "web") window.alert(msg);
       else Alert.alert("Error", msg);
-    } finally { setAdding(false); }
+    } finally {
+      setAdding(false);
+      // Keep the input bar open if user is on web (so they can quickly add more); auto-collapse on mobile
+      if (Platform.OS !== "web") setAddOpen(false);
+    }
   };
 
   const toggleDone = async (item: Item) => {
@@ -83,33 +88,44 @@ export default function ShoppingList({ token }: { token: string }) {
           </View>
         )}
         <View style={{ flex: 1 }} />
-        <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={18} color={theme.onSurfaceSecondary} />
+        <Pressable
+          onPress={(e) => { e.stopPropagation?.(); setAddOpen(o => !o); if (!expanded) setExpanded(true); }}
+          hitSlop={8}
+          style={[s.headerIconBtn, { backgroundColor: addOpen ? theme.brandPrimary : "transparent" }]}
+          testID="shopping-add-toggle"
+        >
+          <Ionicons name={addOpen ? "close" : "add"} size={20} color={addOpen ? theme.onBrandPrimary : theme.brandPrimary} />
+        </Pressable>
+        <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={18} color={theme.onSurfaceSecondary} style={{ marginLeft: 4 }} />
       </Pressable>
 
       {expanded && (
         <View style={s.body}>
-          {/* Add input */}
-          <View style={[s.addRow, { borderColor: theme.border, backgroundColor: theme.surface }]}>
-            <TextInput
-              value={newItem}
-              onChangeText={setNewItem}
-              placeholder="Add an item…"
-              placeholderTextColor={theme.onSurfaceSecondary}
-              style={[s.input, { color: theme.onSurface }]}
-              returnKeyType="done"
-              onSubmitEditing={addItem}
-              editable={!adding}
-              testID="shopping-input"
-            />
-            <Pressable
-              onPress={addItem}
-              disabled={adding || !newItem.trim()}
-              style={[s.addBtn, { backgroundColor: theme.brandPrimary, opacity: adding || !newItem.trim() ? 0.4 : 1 }]}
-              testID="shopping-add"
-            >
-              {adding ? <ActivityIndicator color={theme.onBrandPrimary} size="small" /> : <Ionicons name="add" size={18} color={theme.onBrandPrimary} />}
-            </Pressable>
-          </View>
+          {/* Add input (collapsed by default — toggled via header + button) */}
+          {addOpen && (
+            <View style={[s.addRow, { borderColor: theme.brandPrimary, backgroundColor: theme.surface }]}>
+              <TextInput
+                value={newItem}
+                onChangeText={setNewItem}
+                placeholder="Add an item…"
+                placeholderTextColor={theme.onSurfaceSecondary}
+                style={[s.input, { color: theme.onSurface }]}
+                returnKeyType="done"
+                onSubmitEditing={addItem}
+                editable={!adding}
+                autoFocus
+                testID="shopping-input"
+              />
+              <Pressable
+                onPress={addItem}
+                disabled={adding || !newItem.trim()}
+                style={[s.addBtn, { backgroundColor: theme.brandPrimary, opacity: adding || !newItem.trim() ? 0.4 : 1 }]}
+                testID="shopping-add"
+              >
+                {adding ? <ActivityIndicator color={theme.onBrandPrimary} size="small" /> : <Ionicons name="checkmark" size={18} color={theme.onBrandPrimary} />}
+              </Pressable>
+            </View>
+          )}
 
           {/* Items */}
           {loading ? (
@@ -164,6 +180,7 @@ const s = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", padding: SPACING.md, gap: SPACING.sm, minHeight: 48 },
   title: { fontSize: 15, fontWeight: "500", marginLeft: 4 },
   badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, marginLeft: 6, minWidth: 22, alignItems: "center" },
+  headerIconBtn: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
   body: { flex: 1, paddingHorizontal: SPACING.md, paddingBottom: SPACING.sm, gap: SPACING.xs },
   addRow: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, paddingVertical: 4, marginBottom: SPACING.xs, minHeight: 44 },
   input: { flex: 1, fontSize: 14, paddingVertical: 8 },
