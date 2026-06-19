@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Platform, Alert } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Platform, Alert, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme, SPACING, RADIUS } from "@/src/theme";
 import { api } from "@/src/api/client";
@@ -119,7 +119,7 @@ export default function ShoppingList({ token }: { token: string }) {
           ) : items.length === 0 ? (
             <Text style={[s.empty, { color: theme.info }]}>No items yet. Add your first one above.</Text>
           ) : (
-            <>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: SPACING.sm }} keyboardShouldPersistTaps="handled">
               {items.map(item => (
                 <Pressable
                   key={item.id}
@@ -151,7 +151,7 @@ export default function ShoppingList({ token }: { token: string }) {
                   </Text>
                 </Pressable>
               )}
-            </>
+            </ScrollView>
           )}
         </View>
       )}
@@ -160,11 +160,11 @@ export default function ShoppingList({ token }: { token: string }) {
 }
 
 const s = StyleSheet.create({
-  card: { borderRadius: RADIUS.lg, borderWidth: 1, marginHorizontal: SPACING.lg, marginBottom: SPACING.md, overflow: "hidden" },
+  card: { flex: 1, borderRadius: RADIUS.lg, borderWidth: 1, marginHorizontal: SPACING.lg, marginBottom: SPACING.md, overflow: "hidden" },
   header: { flexDirection: "row", alignItems: "center", padding: SPACING.md, gap: SPACING.sm, minHeight: 48 },
   title: { fontSize: 15, fontWeight: "500", marginLeft: 4 },
   badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, marginLeft: 6, minWidth: 22, alignItems: "center" },
-  body: { paddingHorizontal: SPACING.md, paddingBottom: SPACING.md, gap: SPACING.xs },
+  body: { flex: 1, paddingHorizontal: SPACING.md, paddingBottom: SPACING.sm, gap: SPACING.xs },
   addRow: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, paddingVertical: 4, marginBottom: SPACING.xs, minHeight: 44 },
   input: { flex: 1, fontSize: 14, paddingVertical: 8 },
   addBtn: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", marginLeft: 6 },

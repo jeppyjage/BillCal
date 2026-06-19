@@ -252,20 +252,20 @@ export default function CalendarScreen() {
 
       {loading ? <ActivityIndicator color={theme.brandPrimary} style={{ marginTop: 24 }} /> : (
         <>
-          <View style={[s.weekRow, { borderBottomColor: theme.border }]}>
-            {WEEKDAYS.map(w => (
-              <View key={w} style={s.weekCell}>
-                <Text style={[s.weekday, { color: theme.onSurfaceSecondary }]}>{w}</Text>
-              </View>
-            ))}
-          </View>
-          <ScrollView
-            style={{ flex: 1 }}
-            contentContainerStyle={{ paddingBottom: 100 }}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={theme.brandPrimary} />}
-          >
-            {token ? <ShoppingList token={token} /> : null}
-            {weeks.map((week, weekIdx) => {
+          <View style={s.upperHalf}>
+            <View style={[s.weekRow, { borderBottomColor: theme.border }]}>
+              {WEEKDAYS.map(w => (
+                <View key={w} style={s.weekCell}>
+                  <Text style={[s.weekday, { color: theme.onSurfaceSecondary }]}>{w}</Text>
+                </View>
+              ))}
+            </View>
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingBottom: SPACING.md }}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={theme.brandPrimary} />}
+            >
+              {weeks.map((week, weekIdx) => {
               // Calculate week totals: unpaid bills + expense transactions (above threshold)
               let billsTotal = 0;
               let txTotal = 0;
@@ -459,6 +459,13 @@ export default function CalendarScreen() {
               );
             })}
           </ScrollView>
+          </View>
+
+          {token ? (
+            <View style={[s.lowerHalf, { borderTopColor: theme.border, backgroundColor: theme.surface }]}>
+              <ShoppingList token={token} />
+            </View>
+          ) : null}
         </>
       )}
 
@@ -539,6 +546,8 @@ const s = StyleSheet.create({
   weekRow: { flexDirection: "row", borderBottomWidth: 0.5, paddingVertical: 8 },
   weekCell: { flex: 1, alignItems: "center" },
   weekday: { fontSize: 11, fontWeight: "500", letterSpacing: 0.5, textTransform: "uppercase" },
+  upperHalf: { flex: 1, minHeight: 0 },
+  lowerHalf: { flex: 1, minHeight: 0, borderTopWidth: 1, paddingTop: SPACING.sm },
   grid: { flexDirection: "row", flexWrap: "wrap" },
   weekGrid: { flexDirection: "row" },
   weekTotalRow: {

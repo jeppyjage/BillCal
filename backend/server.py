@@ -1328,7 +1328,7 @@ async def create_shopping_item(payload: ShoppingItemCreate, current_user: dict =
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.shopping_list.insert_one(item)
-    return {k: v for k, v in item.items() if k != "user_id"}
+    return {k: v for k, v in item.items() if k not in ("user_id", "_id")}
 
 
 @api_router.put("/shopping_list/{item_id}")
