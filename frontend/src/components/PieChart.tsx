@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { View, Text, StyleSheet, Pressable, GestureResponderEvent } from "react-native";
+import { View, Text, StyleSheet, Pressable } from "react-native";
 import Svg, { Path, Circle, G } from "react-native-svg";
 
 // Deterministic color per category — Rent & Utilities is ALWAYS orange.
@@ -67,7 +67,7 @@ export default function PieChart({ data, size = 180, onColor, secondaryColor, se
   const selectedSlice = selectedLabel ? data.find(d => d.label === selectedLabel) : null;
   const selectedPct = selectedSlice ? (selectedSlice.value / total) * 100 : 0;
 
-  // Pre-compute slice ranges (for hit-testing)
+  // Pre-compute slice ranges
   const slices = useMemo(() => {
     const out: { label: string; startAngle: number; endAngle: number; color: string }[] = [];
     let cumulative = 0;
@@ -80,38 +80,10 @@ export default function PieChart({ data, size = 180, onColor, secondaryColor, se
     return out;
   }, [data, total]);
 
-  // Hit-test: determine which slice contains a (x, y) press
-  const hitSlice = (x: number, y: number): string | null => {
-    const dx = x - r;
-    const dy = y - r;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist < rInner) return "__center__";
-    if (dist > r) return null; // outside the donut
-    // angle in degrees, 0 at top, going clockwise
-    let angle = Math.atan2(dx, -dy) * (180 / Math.PI);
-    if (angle < 0) angle += 360;
-    for (const sl of slices) {
-      if (angle >= sl.startAngle && angle < sl.endAngle) return sl.label;
-    }
-    return null;
-  };
-
-  const handlePress = (e: GestureResponderEvent) => {
-    const { locationX, locationY } = e.nativeEvent;
-    const hit = hitSlice(locationX, locationY);
-    if (hit === null) return;
-    if (hit === "__center__") {
-      if (selectedSlice && onCenterPress) onCenterPress(selectedSlice.label);
-      else if (selectedLabel && onSlicePress) onSlicePress(null);
-      return;
-    }
-    if (onSlicePress) onSlicePress(hit === selectedLabel ? null : hit);
-  };
-
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
-      <Pressable style={{ width: size, height: size }} onPress={handlePress} testID="pie-svg-area">
-        <Svg width={size} height={size} pointerEvents="none">
+      <View style={{ width: size, height: size }} testID="pie-svg-area">
+        <Svg width={size} height={size}>
           {data.length === 0 ? (
             <Circle cx={r} cy={r} r={r - 1} fill="none" stroke={secondaryColor} strokeWidth={1} />
           ) : (
@@ -127,42 +99,50 @@ export default function PieChart({ data, size = 180, onColor, secondaryColor, se
                     d={path}
                     fill={sl.color}
                     opacity={isDimmed ? 0.3 : 1}
+                    onPress={() => onSlicePress && onSlicePress(isSelected ? null : sl.label)}
+                    onPressIn={() => onSlicePress && onSlicePress(isSelected ? null : sl.label)}
                   />
                 );
               })}
             </G>
           )}
         </Svg>
-        {/* Center text overlay — transparent, no event handling (parent Pressable handles) */}
-        <View
-          pointerEvents="none"
-          style={[StyleSheet.absoluteFillObject, { alignItems: "center", justifyContent: "center" }]}
-        >
-          {selectedSlice ? (
-            <>
-              <Text style={{ color: onColor, fontSize: 10, opacity: 0.7 }} numberOfLines={1}>
-                {selectedSlice.label}
-              </Text>
-              <Text style={{ color: onColor, fontSize: 18, fontWeight: "600", marginTop: 2 }}>
-                ${selectedSlice.value.toFixed(0)}
-              </Text>
-              <Text style={{ color: onColor, fontSize: 10, opacity: 0.7, marginTop: 2 }}>
-                {selectedPct.toFixed(1)}%
-              </Text>
-              <Text style={{ color: onColor, fontSize: 9, opacity: 0.5, marginTop: 4 }}>
-                Tap to view ›
-              </Text>
-            </>
-          ) : (
-            <>
-              <Text style={{ color: onColor, fontSize: 10, opacity: 0.6 }}>Total</Text>
-              <Text style={{ color: onColor, fontSize: 18, fontWeight: "600", marginTop: 2 }}>
-                ${total.toFixed(0)}
-              </Text>
-            </>
-          )}
+        {/* Center text overlay — only covers the inner hole; remains clickable */}
+        <View pointerEvents="box-none" style={[StyleSheet.absoluteFillObject, { alignItems: "center", justifyContent: "center" }]}>
+          <Pressable
+            onPress={() => {
+              if (selectedSlice && onCenterPress) onCenterPress(selectedSlice.label);
+              else if (selectedLabel && onSlicePress) onSlicePress(null);
+            }}
+            style={{ width: rInner * 2 - 6, height: rInner * 2 - 6, borderRadius: rInner, alignItems: "center", justifyContent: "center" }}
+            testID="pie-center"
+          >
+            {selectedSlice ? (
+              <>
+                <Text style={{ color: onColor, fontSize: 10, opacity: 0.7 }} numberOfLines={1}>
+                  {selectedSlice.label}
+                </Text>
+                <Text style={{ color: onColor, fontSize: 18, fontWeight: "600", marginTop: 2 }}>
+                  ${selectedSlice.value.toFixed(0)}
+                </Text>
+                <Text style={{ color: onColor, fontSize: 10, opacity: 0.7, marginTop: 2 }}>
+                  {selectedPct.toFixed(1)}%
+                </Text>
+                <Text style={{ color: onColor, fontSize: 9, opacity: 0.5, marginTop: 4 }}>
+                  Tap to view ›
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={{ color: onColor, fontSize: 10, opacity: 0.6 }}>Total</Text>
+                <Text style={{ color: onColor, fontSize: 18, fontWeight: "600", marginTop: 2 }}>
+                  ${total.toFixed(0)}
+                </Text>
+              </>
+            )}
+          </Pressable>
         </View>
-      </Pressable>
+      </View>
       <View style={{ flex: 1, gap: 6 }}>
         {data.slice(0, 6).map((d, i) => {
           const isSelected = selectedLabel === d.label;
