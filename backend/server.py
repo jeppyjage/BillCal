@@ -1365,6 +1365,72 @@ async def clear_done_shopping_items(current_user: dict = Depends(get_current_use
     return {"ok": True, "deleted": r.deleted_count}
 
 
+# ---------- Tasks ----------
+class TaskCreate(BaseModel):
+    name: str
+
+
+class TaskUpdate(BaseModel):
+    name: Optional[str] = None
+    done: Optional[bool] = None
+
+
+@api_router.get("/tasks")
+async def list_tasks(current_user: dict = Depends(get_current_user)):
+    items = await db.tasks.find({"user_id": current_user["id"]}, {"_id": 0, "user_id": 0}).sort("created_at", 1).to_list(500)
+    return {"items": items}
+
+
+@api_router.post("/tasks")
+async def create_task(payload: TaskCreate, current_user: dict = Depends(get_current_user)):
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name required")
+    item = {
+        "id": str(uuid.uuid4()),
+        "user_id": current_user["id"],
+        "name": name,
+        "done": False,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.tasks.insert_one(item)
+    return {k: v for k, v in item.items() if k not in ("user_id", "_id")}
+
+
+@api_router.put("/tasks/{item_id}")
+async def update_task(item_id: str, payload: TaskUpdate, current_user: dict = Depends(get_current_user)):
+    updates = {k: v for k, v in payload.dict().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No updates")
+    if "name" in updates:
+        updates["name"] = str(updates["name"]).strip()
+        if not updates["name"]:
+            raise HTTPException(status_code=400, detail="Name cannot be empty")
+    r = await db.tasks.find_one_and_update(
+        {"id": item_id, "user_id": current_user["id"]},
+        {"$set": updates},
+        return_document=True,
+        projection={"_id": 0, "user_id": 0},
+    )
+    if not r:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return r
+
+
+@api_router.delete("/tasks/{item_id}")
+async def delete_task(item_id: str, current_user: dict = Depends(get_current_user)):
+    r = await db.tasks.delete_one({"id": item_id, "user_id": current_user["id"]})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return {"ok": True}
+
+
+@api_router.post("/tasks/clear_done")
+async def clear_done_tasks(current_user: dict = Depends(get_current_user)):
+    r = await db.tasks.delete_many({"user_id": current_user["id"], "done": True})
+    return {"ok": True, "deleted": r.deleted_count}
+
+
 # ---------- Mock Bank Sync ----------
 MOCK_BANKS = [
     {"name": "Everyday Checking", "type": "checking", "masked_number": "****4521", "balance": 3284.55, "institution": "Greenleaf Bank"},

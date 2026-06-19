@@ -7,7 +7,7 @@ import { useAuth } from "@/src/context/AuthContext";
 import { useTheme, useIsDark, SPACING, RADIUS, CATEGORIES } from "@/src/theme";
 import * as Notifications from "expo-notifications";
 import { api, Bill, BankTransaction } from "@/src/api/client";
-import ShoppingList from "@/src/components/ShoppingList";
+import ChecklistCard from "@/src/components/ChecklistCard";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["January", "February", "March", "April", "May", "June",
@@ -463,7 +463,32 @@ export default function CalendarScreen() {
 
           {token ? (
             <View style={[s.lowerHalf, { borderTopColor: theme.border, backgroundColor: theme.surface }]}>
-              <ShoppingList token={token} />
+              <ChecklistCard
+                title="Shopping"
+                icon="basket"
+                accent={theme.brandPrimary}
+                testIDPrefix="shopping"
+                api={{
+                  list: () => api.listShoppingItems(token),
+                  create: (name) => api.createShoppingItem(token, name),
+                  update: (id, u) => api.updateShoppingItem(token, id, u),
+                  remove: (id) => api.deleteShoppingItem(token, id),
+                  clearDone: () => api.clearDoneShoppingItems(token),
+                }}
+              />
+              <ChecklistCard
+                title="Tasks"
+                icon="checkmark-done-circle"
+                accent="#F97316"
+                testIDPrefix="tasks"
+                api={{
+                  list: () => api.listTasks(token),
+                  create: (name) => api.createTask(token, name),
+                  update: (id, u) => api.updateTask(token, id, u),
+                  remove: (id) => api.deleteTask(token, id),
+                  clearDone: () => api.clearDoneTasks(token),
+                }}
+              />
             </View>
           ) : null}
         </>
@@ -547,7 +572,7 @@ const s = StyleSheet.create({
   weekCell: { flex: 1, alignItems: "center" },
   weekday: { fontSize: 11, fontWeight: "500", letterSpacing: 0.5, textTransform: "uppercase" },
   upperHalf: { flex: 1, minHeight: 0 },
-  lowerHalf: { flex: 1, minHeight: 0, borderTopWidth: 1, paddingTop: SPACING.sm },
+  lowerHalf: { flex: 1, minHeight: 0, borderTopWidth: 1, padding: SPACING.sm, flexDirection: "row", gap: SPACING.sm },
   grid: { flexDirection: "row", flexWrap: "wrap" },
   weekGrid: { flexDirection: "row" },
   weekTotalRow: {
