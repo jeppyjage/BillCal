@@ -299,12 +299,12 @@ async def seed_example_bills(current_user: dict = Depends(get_current_user)):
     def offset(days: int) -> str:
         return (today + timedelta(days=days)).isoformat()
     examples = [
-        {"title": "Electricity Bill",   "amount":   84.50, "due_date": offset(3),   "category": "Rent & Utilities",     "recurrence": "monthly"},
-        {"title": "Internet",           "amount":   59.00, "due_date": offset(3),   "category": "Internet",      "recurrence": "monthly"},
+        {"title": "Electricity Bill",   "amount":   84.50, "due_date": offset(3),   "category": "Essentials",     "recurrence": "monthly"},
+        {"title": "Internet",           "amount":   59.00, "due_date": offset(3),   "category": "Essentials",      "recurrence": "monthly"},
         {"title": "Phone Plan",         "amount":   45.00, "due_date": offset(-7),  "category": "Phone",         "recurrence": "monthly"},
         {"title": "Netflix",            "amount":   15.49, "due_date": offset(10),  "category": "Subscriptions", "recurrence": "monthly"},
         {"title": "Car Insurance",      "amount":  120.00, "due_date": offset(10),  "category": "Insurance",     "recurrence": "monthly"},
-        {"title": "Apartment Rent",     "amount": 1450.00, "due_date": offset(18),  "category": "Rent & Utilities", "recurrence": "monthly"},
+        {"title": "Apartment Rent",     "amount": 1450.00, "due_date": offset(18),  "category": "Essentials", "recurrence": "monthly"},
         {"title": "Visa Credit Card",   "amount":  342.75, "due_date": offset(25),  "category": "Credit Card",   "recurrence": "monthly"},
     ]
     created: List[Bill] = []
@@ -1111,13 +1111,12 @@ async def calendar_sync_all(background: BackgroundTasks, current_user: dict = De
 
 # ---------- Categories & Auto-categorization ----------
 DEFAULT_CATEGORIES = [
-    "Rent & Utilities",
-    "Internet",
+    "Essentials",
     "Phone",
     "Subscriptions",
     "Insurance",
     "Credit Card",
-    "Food",
+    "Food & Drink",
     "Groceries",
     "Transportation",
     "Shopping",
@@ -1142,27 +1141,30 @@ BUILT_IN_RULES: List[dict] = [
     {"pattern": "safeway",        "category": "Groceries"},
     {"pattern": "costco",         "category": "Groceries"},
     {"pattern": "walmart",        "category": "Groceries"},
-    {"pattern": "coffee",         "category": "Food"},
-    {"pattern": "starbucks",      "category": "Food"},
-    {"pattern": "doordash",       "category": "Food"},
-    {"pattern": "uber eats",      "category": "Food"},
-    {"pattern": "grubhub",        "category": "Food"},
-    {"pattern": "mcdonald",       "category": "Food"},
-    {"pattern": "chipotle",       "category": "Food"},
+    {"pattern": "coffee",         "category": "Food & Drink"},
+    {"pattern": "starbucks",      "category": "Food & Drink"},
+    {"pattern": "doordash",       "category": "Food & Drink"},
+    {"pattern": "uber eats",      "category": "Food & Drink"},
+    {"pattern": "grubhub",        "category": "Food & Drink"},
+    {"pattern": "mcdonald",       "category": "Food & Drink"},
+    {"pattern": "chipotle",       "category": "Food & Drink"},
+    {"pattern": "restaurant",     "category": "Food & Drink"},
+    {"pattern": "cafe",           "category": "Food & Drink"},
+    {"pattern": "bar ",           "category": "Food & Drink"},
     {"pattern": "uber",           "category": "Transportation"},
     {"pattern": "lyft",           "category": "Transportation"},
     {"pattern": "shell",          "category": "Transportation"},
     {"pattern": "chevron",        "category": "Transportation"},
     {"pattern": "exxon",          "category": "Transportation"},
-    {"pattern": "electric",       "category": "Rent & Utilities"},
-    {"pattern": "powerlink",      "category": "Rent & Utilities"},
-    {"pattern": "water",          "category": "Rent & Utilities"},
-    {"pattern": "gas company",    "category": "Rent & Utilities"},
-    {"pattern": "rent",           "category": "Rent & Utilities"},
-    {"pattern": "internet",       "category": "Internet"},
-    {"pattern": "fastnet",        "category": "Internet"},
-    {"pattern": "comcast",        "category": "Internet"},
-    {"pattern": "xfinity",        "category": "Internet"},
+    {"pattern": "electric",       "category": "Essentials"},
+    {"pattern": "powerlink",      "category": "Essentials"},
+    {"pattern": "water",          "category": "Essentials"},
+    {"pattern": "gas company",    "category": "Essentials"},
+    {"pattern": "rent",           "category": "Essentials"},
+    {"pattern": "internet",       "category": "Essentials"},
+    {"pattern": "fastnet",        "category": "Essentials"},
+    {"pattern": "comcast",        "category": "Essentials"},
+    {"pattern": "xfinity",        "category": "Essentials"},
     {"pattern": "verizon",        "category": "Phone"},
     {"pattern": "att ",           "category": "Phone"},
     {"pattern": "t-mobile",       "category": "Phone"},
@@ -1305,14 +1307,14 @@ MOCK_BANKS = [
 ]
 
 MOCK_TX_TEMPLATES = [
-    ("Electricity - Powerlink", -84.50, "Rent & Utilities"),
+    ("Electricity - Powerlink", -84.50, "Essentials"),
     ("Spotify Premium", -10.99, "Subscriptions"),
     ("Whole Foods Market", -56.32, "Groceries"),
     ("Salary - Acme Corp", 2400.00, "Income"),
-    ("Internet - Fastnet", -59.00, "Rent & Utilities"),
+    ("Internet - Fastnet", -59.00, "Essentials"),
     ("Netflix", -15.49, "Subscriptions"),
-    ("Coffee - BluePeak", -4.75, "Food"),
-    ("Rent - Maple Properties", -1450.00, "Rent & Utilities"),
+    ("Coffee - BluePeak", -4.75, "Food & Drink"),
+    ("Rent - Maple Properties", -1450.00, "Essentials"),
 ]
 
 
@@ -1364,16 +1366,20 @@ async def trigger_sync(current_user: dict = Depends(get_current_user)):
 
 
 # ---------- Health ----------
-def _norm_cat(c: str) -> str:
-    return "Rent & Utilities" if c in ("Rent", "Utilities") else c
-
-
 @app.on_event("startup")
 async def _migrate_categories():
-    """Merge legacy Rent / Utilities categories into 'Rent & Utilities' once on startup."""
+    """One-time migrations: merge legacy categories into renamed/consolidated ones."""
     try:
-        await db.bills.update_many({"category": {"$in": ["Rent", "Utilities"]}}, {"$set": {"category": "Rent & Utilities"}})
-        await db.bank_transactions.update_many({"category": {"$in": ["Rent", "Utilities"]}}, {"$set": {"category": "Rent & Utilities"}})
+        # Legacy → Essentials
+        legacy_essentials = ["Rent", "Utilities", "Rent & Utilities", "Internet"]
+        await db.bills.update_many({"category": {"$in": legacy_essentials}}, {"$set": {"category": "Essentials"}})
+        await db.bank_transactions.update_many({"category": {"$in": legacy_essentials}}, {"$set": {"category": "Essentials"}})
+        await db.category_rules.update_many({"category": {"$in": legacy_essentials}}, {"$set": {"category": "Essentials"}})
+        # Eating & Drinking / Food → Food & Drink
+        legacy_food = ["Food", "Eating & Drinking"]
+        await db.bills.update_many({"category": {"$in": legacy_food}}, {"$set": {"category": "Food & Drink"}})
+        await db.bank_transactions.update_many({"category": {"$in": legacy_food}}, {"$set": {"category": "Food & Drink"}})
+        await db.category_rules.update_many({"category": {"$in": legacy_food}}, {"$set": {"category": "Food & Drink"}})
     except Exception:
         pass
 

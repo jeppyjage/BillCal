@@ -171,7 +171,7 @@ export default function CalendarScreen() {
   }, [transactions, bills]);
 
   // Categories that should be treated as "bill-like" expenses (count toward Bills, not Spent)
-  const BILL_CATEGORIES = ["Rent & Utilities", "Subscriptions", "Insurance", "Internet", "Phone", "Credit Card"];
+  const BILL_CATEGORIES = ["Essentials", "Subscriptions", "Insurance", "Phone", "Credit Card"];
 
   // Group the flat month.cells (length 35 or 42) into weeks of 7
   const weeks = useMemo(() => {

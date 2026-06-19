@@ -60,14 +60,17 @@ export const useTheme = (): Theme => {
 export const useIsDark = () => useColorScheme() === "dark";
 
 export const CATEGORIES = [
-  { key: "Rent & Utilities", icon: "home" },
+  { key: "Essentials", icon: "home" },
   { key: "Subscriptions", icon: "play-circle" },
   { key: "Credit Card", icon: "card" },
   { key: "Insurance", icon: "shield-checkmark" },
-  { key: "Internet", icon: "wifi" },
   { key: "Phone", icon: "call" },
-  { key: "Food", icon: "fast-food" },
-  { key: "Transport", icon: "car" },
+  { key: "Food & Drink", icon: "fast-food" },
+  { key: "Groceries", icon: "basket" },
+  { key: "Transportation", icon: "car" },
+  { key: "Entertainment", icon: "film" },
+  { key: "Shopping", icon: "cart" },
+  { key: "Health", icon: "medkit" },
   { key: "Other", icon: "ellipsis-horizontal-circle" },
 ] as const;
 

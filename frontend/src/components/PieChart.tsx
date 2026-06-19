@@ -4,13 +4,12 @@ import Svg, { Path, Circle, G } from "react-native-svg";
 
 // Deterministic color per category — Rent & Utilities is ALWAYS orange.
 const CATEGORY_COLORS: Record<string, string> = {
-  "Rent & Utilities": "#F97316", // orange (matches Outlook BillCal category)
-  "Internet":         "#3B82F6", // blue
+  "Essentials":       "#F97316", // orange (matches Outlook BillCal category)
   "Phone":            "#06B6D4", // cyan
   "Subscriptions":    "#8B5CF6", // purple
   "Insurance":        "#0EA5E9", // sky
   "Credit Card":      "#EF4444", // red
-  "Food":             "#F59E0B", // amber
+  "Food & Drink":     "#F59E0B", // amber
   "Groceries":        "#15803D", // green
   "Transportation":   "#84CC16", // lime
   "Shopping":         "#EC4899", // pink
