@@ -474,6 +474,8 @@ export default function CalendarScreen() {
                   update: (id, u) => api.updateShoppingItem(token, id, u),
                   remove: (id) => api.deleteShoppingItem(token, id),
                   clearDone: () => api.clearDoneShoppingItems(token),
+                  scan: (b64) => api.scanListImage(token, b64, "shopping"),
+                  apply: (add, uncheck) => api.applyListImport(token, "shopping", add, uncheck),
                 }}
               />
               <ChecklistCard
@@ -487,6 +489,8 @@ export default function CalendarScreen() {
                   update: (id, u) => api.updateTask(token, id, u),
                   remove: (id) => api.deleteTask(token, id),
                   clearDone: () => api.clearDoneTasks(token),
+                  scan: (b64) => api.scanListImage(token, b64, "tasks"),
+                  apply: (add, uncheck) => api.applyListImport(token, "tasks", add, uncheck),
                 }}
               />
             </View>

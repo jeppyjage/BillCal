@@ -1431,6 +1431,156 @@ async def clear_done_tasks(current_user: dict = Depends(get_current_user)):
     return {"ok": True, "deleted": r.deleted_count}
 
 
+# ---------- Photo → List Import (Claude Sonnet OCR) ----------
+EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
+
+
+class ListImportRequest(BaseModel):
+    image_base64: str
+    list_type: Literal["shopping", "tasks"]
+
+
+@api_router.post("/list_import/scan")
+async def scan_list_image(payload: ListImportRequest, current_user: dict = Depends(get_current_user)):
+    """OCR an image with Claude Sonnet 4.5 and return extracted list items.
+    Also matches each extracted name against the user's existing items (case-insensitive substring match)
+    so the client can preview + auto-uncheck matched-done items."""
+    if not EMERGENT_LLM_KEY:
+        raise HTTPException(status_code=500, detail="LLM key not configured")
+    if not payload.image_base64:
+        raise HTTPException(status_code=400, detail="image_base64 required")
+
+    # Strip data URL prefix if present
+    img_b64 = payload.image_base64
+    if "," in img_b64 and img_b64.lstrip().startswith("data:"):
+        img_b64 = img_b64.split(",", 1)[1]
+
+    # Call Claude with image attachment
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Integration library missing: {e}")
+
+    system_prompt = (
+        "You extract list items from a photo of a handwritten or printed list. "
+        "Return ONLY a JSON object of the form {\"items\": [\"item1\", \"item2\", ...]}. "
+        "Each item should be a short, normalized noun phrase suitable for a shopping or todo list. "
+        "Ignore prices, totals, decorative text, headers like 'Shopping List' or 'To Do', and any non-list content. "
+        "Do not include numbering, bullets, or check marks. "
+        "If the photo contains no list items, return {\"items\": []}. "
+        "Output strictly valid JSON, no commentary, no markdown fences."
+    )
+
+    chat = LlmChat(
+        api_key=EMERGENT_LLM_KEY,
+        session_id=f"list-import-{current_user['id']}-{uuid.uuid4().hex[:8]}",
+        system_message=system_prompt,
+    ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+
+    user_msg = UserMessage(
+        text=(
+            f"Extract every item from this {payload.list_type} list. "
+            "Return ONLY the JSON object as instructed."
+        ),
+        file_contents=[ImageContent(image_base64=img_b64)],
+    )
+
+    try:
+        response_text = await chat.send_message(user_msg)
+    except Exception as e:
+        logger.exception("LLM call failed")
+        raise HTTPException(status_code=502, detail=f"LLM call failed: {e}")
+
+    # Parse JSON robustly
+    import json as _json
+    import re as _re
+    text = (response_text or "").strip()
+    # strip code fences if present
+    if text.startswith("```"):
+        text = _re.sub(r"^```(?:json)?\s*", "", text)
+        text = _re.sub(r"\s*```$", "", text)
+    items: List[str] = []
+    try:
+        parsed = _json.loads(text)
+        raw_items = parsed.get("items", []) if isinstance(parsed, dict) else []
+        for it in raw_items:
+            if isinstance(it, str):
+                s = it.strip()
+                if s:
+                    items.append(s)
+            elif isinstance(it, dict) and "name" in it:
+                s = str(it["name"]).strip()
+                if s:
+                    items.append(s)
+    except Exception:
+        # Fallback: extract bullet-like lines
+        for line in text.split("\n"):
+            line = _re.sub(r"^[\-\*•\d\.\)\(\s\[\]xX✓✗]+", "", line).strip()
+            if line and len(line) < 80:
+                items.append(line)
+
+    # Dedupe (case-insensitive, preserve first-seen casing)
+    seen: set = set()
+    deduped: List[str] = []
+    for it in items:
+        k = it.lower()
+        if k not in seen:
+            seen.add(k)
+            deduped.append(it)
+
+    # Match against user's existing items
+    coll = db.shopping_list if payload.list_type == "shopping" else db.tasks
+    existing = await coll.find({"user_id": current_user["id"]}, {"_id": 0, "user_id": 0}).to_list(2000)
+    existing_by_name = {(e["name"] or "").lower(): e for e in existing}
+
+    results = []
+    for name in deduped:
+        match = existing_by_name.get(name.lower())
+        results.append({
+            "name": name,
+            "matches_existing_id": match["id"] if match else None,
+            "existing_done": match["done"] if match else None,
+        })
+
+    return {"list_type": payload.list_type, "extracted": results}
+
+
+class ListImportApply(BaseModel):
+    list_type: Literal["shopping", "tasks"]
+    add_items: List[str] = []  # names to create new
+    uncheck_ids: List[str] = []  # existing item IDs to mark not-done
+
+
+@api_router.post("/list_import/apply")
+async def apply_list_import(payload: ListImportApply, current_user: dict = Depends(get_current_user)):
+    coll = db.shopping_list if payload.list_type == "shopping" else db.tasks
+    created = 0
+    now_iso = datetime.now(timezone.utc).isoformat()
+    docs = []
+    for name in payload.add_items:
+        n = (name or "").strip()
+        if not n:
+            continue
+        docs.append({
+            "id": str(uuid.uuid4()),
+            "user_id": current_user["id"],
+            "name": n,
+            "done": False,
+            "created_at": now_iso,
+        })
+    if docs:
+        await coll.insert_many(docs)
+        created = len(docs)
+    unchecked = 0
+    if payload.uncheck_ids:
+        r = await coll.update_many(
+            {"user_id": current_user["id"], "id": {"$in": payload.uncheck_ids}},
+            {"$set": {"done": False}},
+        )
+        unchecked = r.modified_count
+    return {"ok": True, "created": created, "unchecked": unchecked}
+
+
 # ---------- Mock Bank Sync ----------
 MOCK_BANKS = [
     {"name": "Everyday Checking", "type": "checking", "masked_number": "****4521", "balance": 3284.55, "institution": "Greenleaf Bank"},

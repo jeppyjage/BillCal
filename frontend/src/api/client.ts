@@ -141,6 +141,18 @@ export const api = {
     request<{ ok: boolean }>(`/tasks/${id}`, token, { method: "DELETE" }),
   clearDoneTasks: (token: string) =>
     request<{ ok: boolean; deleted: number }>("/tasks/clear_done", token, { method: "POST" }),
+  scanListImage: (token: string, image_base64: string, list_type: "shopping" | "tasks") =>
+    request<{ list_type: string; extracted: { name: string; matches_existing_id: string | null; existing_done: boolean | null }[] }>(
+      "/list_import/scan",
+      token,
+      { method: "POST", body: JSON.stringify({ image_base64, list_type }) }
+    ),
+  applyListImport: (token: string, list_type: "shopping" | "tasks", add_items: string[], uncheck_ids: string[]) =>
+    request<{ ok: boolean; created: number; unchecked: number }>(
+      "/list_import/apply",
+      token,
+      { method: "POST", body: JSON.stringify({ list_type, add_items, uncheck_ids }) }
+    ),
 };
 
 export const oauthUrl = (provider: "google" | "microsoft", token: string) =>
