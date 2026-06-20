@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState, useEffect } from "react";
-import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, Modal } from "react-native";
+import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, Modal, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
@@ -34,6 +34,9 @@ export default function CalendarScreen() {
   const isDark = useIsDark();
   const weekBarBg = isDark ? "#06080F" : theme.borderStrong;
   const { token } = useAuth();
+  const { height: windowHeight } = useWindowDimensions();
+  // Lists section takes 1/4 of available window height.
+  const listsHeight = Math.round(windowHeight * 0.25);
   const [bills, setBills] = useState<Bill[]>([]);
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -462,7 +465,7 @@ export default function CalendarScreen() {
           </View>
 
           {token ? (
-            <View style={[s.lowerHalf, { borderTopColor: theme.border, backgroundColor: theme.surface }]}>
+            <View style={[s.lowerHalf, { height: listsHeight, borderTopColor: theme.border, backgroundColor: theme.surface }]}>
               <ChecklistCard
                 title="Shopping"
                 icon="basket"
@@ -576,7 +579,7 @@ const s = StyleSheet.create({
   weekCell: { flex: 1, alignItems: "center" },
   weekday: { fontSize: 11, fontWeight: "500", letterSpacing: 0.5, textTransform: "uppercase" },
   upperHalf: { flex: 1, minHeight: 0 },
-  lowerHalf: { flex: 1, minHeight: 0, borderTopWidth: 1, padding: SPACING.sm, flexDirection: "row", gap: SPACING.sm },
+  lowerHalf: { minHeight: 0, borderTopWidth: 1, padding: SPACING.sm, flexDirection: "row", gap: SPACING.sm },
   grid: { flexDirection: "row", flexWrap: "wrap" },
   weekGrid: { flexDirection: "row" },
   weekTotalRow: {
