@@ -332,7 +332,7 @@ export default function CalendarScreen() {
                               style={s.detailRow}
                             >
                               <Text style={{ color: theme.onSurface, fontSize: 13, flex: 1 }} numberOfLines={1}>{b.title || b.description}</Text>
-                              <Text style={{ color: theme.onSurface, fontSize: 13, fontWeight: "500" }}>${Math.abs(b.amount).toFixed(2)}</Text>
+                              <Text style={{ color: theme.onSurface, fontSize: 13, fontWeight: "500" }}>−${Math.abs(b.amount).toFixed(2)}</Text>
                             </Pressable>
                           ))}
                           {weekTxs.length > 0 && (
@@ -402,7 +402,7 @@ export default function CalendarScreen() {
                                   ]}
                                 >
                                   <Text numberOfLines={2} style={[s.pillText, { color: "#FFFFFF", fontSize: PILL_FS, textDecorationLine: b.paid ? "line-through" : "none" }]}>
-                                    ${b.amount.toFixed(0)} {b.title}
+                                    −${b.amount.toFixed(0)} {b.title}
                                   </Text>
                                 </Pressable>
                               );
@@ -423,7 +423,7 @@ export default function CalendarScreen() {
                                     ]}
                                   >
                                     <Text numberOfLines={2} style={[s.pillText, { color: "#FFFFFF", fontSize: PILL_FS }]}>
-                                      ${Math.abs(t.amount).toFixed(0)} {t.description}
+                                      −${Math.abs(t.amount).toFixed(0)} {t.description}
                                     </Text>
                                   </Pressable>
                                 );
