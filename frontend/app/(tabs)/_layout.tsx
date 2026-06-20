@@ -1,10 +1,27 @@
-import { Tabs } from "expo-router";
+import { Tabs, Redirect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { Platform } from "react-native";
+import { Platform, View, ActivityIndicator } from "react-native";
 import { useTheme } from "@/src/theme";
+import { useAuth } from "@/src/context/AuthContext";
 
 export default function TabsLayout() {
   const theme = useTheme();
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.surface, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator size="large" color={theme.brandPrimary} />
+      </View>
+    );
+  }
+
+  // If a 401 cleared the user out from under us, bounce back to login
+  // instead of letting tab screens spam the dead token.
+  if (!user) {
+    return <Redirect href="/auth/login" />;
+  }
+
   return (
     <Tabs
       screenOptions={{

@@ -1,5 +1,20 @@
 const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL;
 
+export class UnauthorizedError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "UnauthorizedError";
+    this.status = status;
+  }
+}
+
+type UnauthorizedHandler = () => void;
+let unauthorizedHandler: UnauthorizedHandler | null = null;
+export const setOnUnauthorized = (handler: UnauthorizedHandler | null) => {
+  unauthorizedHandler = handler;
+};
+
 export interface Bill {
   id: string;
   user_id: string;
@@ -42,7 +57,15 @@ async function request<T>(path: string, token: string | null, init?: RequestInit
   });
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;
-  if (!res.ok) throw new Error(data?.detail || `Request failed: ${res.status}`);
+  if (!res.ok) {
+    if (res.status === 401) {
+      if (unauthorizedHandler) {
+        try { unauthorizedHandler(); } catch { /* ignore */ }
+      }
+      throw new UnauthorizedError(data?.detail || "Session expired. Please sign in again.", 401);
+    }
+    throw new Error(data?.detail || `Request failed: ${res.status}`);
+  }
   return data as T;
 }
 
