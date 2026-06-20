@@ -402,7 +402,7 @@ export default function CalendarScreen() {
                                   ]}
                                 >
                                   <Text numberOfLines={2} style={[s.pillText, { color: "#FFFFFF", fontSize: PILL_FS, textDecorationLine: b.paid ? "line-through" : "none" }]}>
-                                    −${b.amount.toFixed(0)} {b.title}
+                                    {`−$${b.amount.toFixed(0)}\n${b.title}`}
                                   </Text>
                                 </Pressable>
                               );
@@ -423,7 +423,7 @@ export default function CalendarScreen() {
                                     ]}
                                   >
                                     <Text numberOfLines={2} style={[s.pillText, { color: "#FFFFFF", fontSize: PILL_FS }]}>
-                                      −${Math.abs(t.amount).toFixed(0)} {t.description}
+                                      {`−$${Math.abs(t.amount).toFixed(0)}\n${t.description}`}
                                     </Text>
                                   </Pressable>
                                 );
@@ -442,7 +442,7 @@ export default function CalendarScreen() {
                                   ]}
                                 >
                                   <Text numberOfLines={2} style={[s.txPillText, { color: theme.onSurfaceSecondary, fontSize: Math.max(8, PILL_FS - 1) }]}>
-                                    {isCredit ? "+" : "−"}${Math.abs(t.amount).toFixed(0)} {t.description}
+                                    {`${isCredit ? "+" : "−"}$${Math.abs(t.amount).toFixed(0)}\n${t.description}`}
                                   </Text>
                                 </Pressable>
                               );
