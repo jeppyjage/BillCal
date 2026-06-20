@@ -174,13 +174,6 @@ export default function ChecklistCard({ title, icon, accent, api, testIDPrefix =
     <View style={[s.card, { backgroundColor: theme.surfaceSecondary, borderColor: theme.border }]} testID={`${testIDPrefix}-card`}>
       <View style={s.header}>
         <Text style={[s.title, { color: theme.onSurface }]} numberOfLines={1}>{title}</Text>
-        {items.length > 0 && (
-          <View style={[s.badge, { backgroundColor: theme.brandTertiary }]}>
-            <Text style={{ color: theme.onBrandTertiary, fontSize: 11, fontWeight: "600" }}>
-              {remainingCount}
-            </Text>
-          </View>
-        )}
         <View style={{ flex: 1 }} />
         <Pressable
           onPress={() => setSourceMenuOpen(true)}

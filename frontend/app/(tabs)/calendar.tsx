@@ -35,7 +35,7 @@ export default function CalendarScreen() {
   const weekBarBg = isDark ? "#06080F" : theme.borderStrong;
   const { token } = useAuth();
   // Bottom Shopping/Tasks lists are sized to comfortably fit ~4 entries.
-  const listsHeight = 220;
+  const listsHeight = 195;
   const [bills, setBills] = useState<Bill[]>([]);
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -401,7 +401,7 @@ export default function CalendarScreen() {
                                     },
                                   ]}
                                 >
-                                  <Text numberOfLines={1} style={[s.pillText, { color: "#FFFFFF", fontSize: PILL_FS, textDecorationLine: b.paid ? "line-through" : "none" }]}>
+                                  <Text numberOfLines={2} style={[s.pillText, { color: "#FFFFFF", fontSize: PILL_FS, textDecorationLine: b.paid ? "line-through" : "none" }]}>
                                     ${b.amount.toFixed(0)} {b.title}
                                   </Text>
                                 </Pressable>
@@ -422,7 +422,7 @@ export default function CalendarScreen() {
                                       { backgroundColor: theme.warning },
                                     ]}
                                   >
-                                    <Text numberOfLines={1} style={[s.pillText, { color: "#FFFFFF", fontSize: PILL_FS }]}>
+                                    <Text numberOfLines={2} style={[s.pillText, { color: "#FFFFFF", fontSize: PILL_FS }]}>
                                       ${Math.abs(t.amount).toFixed(0)} {t.description}
                                     </Text>
                                   </Pressable>
@@ -441,7 +441,7 @@ export default function CalendarScreen() {
                                     },
                                   ]}
                                 >
-                                  <Text numberOfLines={1} style={[s.txPillText, { color: theme.onSurfaceSecondary, fontSize: Math.max(8, PILL_FS - 1) }]}>
+                                  <Text numberOfLines={2} style={[s.txPillText, { color: theme.onSurfaceSecondary, fontSize: Math.max(8, PILL_FS - 1) }]}>
                                     {isCredit ? "+" : "−"}${Math.abs(t.amount).toFixed(0)} {t.description}
                                   </Text>
                                 </Pressable>
@@ -614,21 +614,21 @@ const s = StyleSheet.create({
   billsStack: { gap: 2 },
   pill: {
     borderRadius: 3,
-    paddingHorizontal: 4,
+    paddingHorizontal: 3,
     paddingVertical: 2,
     minHeight: 18,
     justifyContent: "center",
   },
-  pillText: { fontWeight: "500", textAlign: "center" },
+  pillText: { fontWeight: "500", textAlign: "left" },
   txPill: {
     borderRadius: 3,
     borderLeftWidth: 2,
-    paddingHorizontal: 4,
+    paddingHorizontal: 3,
     paddingVertical: 2,
     minHeight: 16,
     justifyContent: "center",
   },
-  txPillText: { fontWeight: "400" },
+  txPillText: { fontWeight: "400", textAlign: "left" },
   moreText: { fontSize: 10, textAlign: "center", fontWeight: "500" },
   fab: {
     position: "absolute", right: SPACING.lg, bottom: 24, width: 56, height: 56, borderRadius: 28,
