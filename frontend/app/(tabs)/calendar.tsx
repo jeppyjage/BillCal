@@ -194,6 +194,7 @@ export default function CalendarScreen() {
   const CELL_HEIGHT = [90, 130, 170, 210, 250][z + 2];
   const MAX_BILLS = [2, 3, 4, 5, 6][z + 2];
   const PILL_FS = [10, 11, 12, 13, 14][z + 2];
+  const NAME_FS = [9, 10, 11, 12, 13][z + 2];
 
   const numRows = month.cells.length / 7;
 
@@ -401,8 +402,11 @@ export default function CalendarScreen() {
                                     },
                                   ]}
                                 >
-                                  <Text numberOfLines={2} style={[s.pillText, { color: "#FFFFFF", fontSize: PILL_FS, textDecorationLine: b.paid ? "line-through" : "none" }]}>
-                                    {`−$${b.amount.toFixed(0)}\n${b.title}`}
+                                  <Text numberOfLines={1} style={[s.pillText, { color: "#FFFFFF", fontSize: PILL_FS, textDecorationLine: b.paid ? "line-through" : "none" }]}>
+                                    {`−$${b.amount.toFixed(0)}`}
+                                  </Text>
+                                  <Text numberOfLines={1} style={[s.pillName, { color: "#FFFFFF", fontSize: NAME_FS, textDecorationLine: b.paid ? "line-through" : "none" }]}>
+                                    {b.title}
                                   </Text>
                                 </Pressable>
                               );
@@ -422,8 +426,11 @@ export default function CalendarScreen() {
                                       { backgroundColor: theme.warning },
                                     ]}
                                   >
-                                    <Text numberOfLines={2} style={[s.pillText, { color: "#FFFFFF", fontSize: PILL_FS }]}>
-                                      {`−$${Math.abs(t.amount).toFixed(0)}\n${t.description}`}
+                                    <Text numberOfLines={1} style={[s.pillText, { color: "#FFFFFF", fontSize: PILL_FS }]}>
+                                      {`−$${Math.abs(t.amount).toFixed(0)}`}
+                                    </Text>
+                                    <Text numberOfLines={1} style={[s.pillName, { color: "#FFFFFF", fontSize: NAME_FS }]}>
+                                      {t.description}
                                     </Text>
                                   </Pressable>
                                 );
@@ -441,8 +448,11 @@ export default function CalendarScreen() {
                                     },
                                   ]}
                                 >
-                                  <Text numberOfLines={2} style={[s.txPillText, { color: theme.onSurfaceSecondary, fontSize: Math.max(8, PILL_FS - 1) }]}>
-                                    {`${isCredit ? "+" : "−"}$${Math.abs(t.amount).toFixed(0)}\n${t.description}`}
+                                  <Text numberOfLines={1} style={[s.txPillText, { color: theme.onSurfaceSecondary, fontSize: Math.max(8, PILL_FS - 1) }]}>
+                                    {`${isCredit ? "+" : "−"}$${Math.abs(t.amount).toFixed(0)}`}
+                                  </Text>
+                                  <Text numberOfLines={1} style={[s.pillName, { color: theme.onSurfaceSecondary, fontSize: Math.max(8, NAME_FS - 1), fontWeight: "400" }]}>
+                                    {t.description}
                                   </Text>
                                 </Pressable>
                               );
@@ -605,7 +615,7 @@ const s = StyleSheet.create({
     width: `${100 / 7}%`,
     borderRightWidth: 0.5,
     borderBottomWidth: 0.5,
-    padding: 4,
+    padding: 2,
   },
   cellHeader: { marginBottom: 4, alignItems: "center" },
   dayNum: { fontSize: 13 },
@@ -614,21 +624,22 @@ const s = StyleSheet.create({
   billsStack: { gap: 2 },
   pill: {
     borderRadius: 3,
-    paddingHorizontal: 3,
+    paddingHorizontal: 2,
     paddingVertical: 2,
     minHeight: 18,
     justifyContent: "center",
   },
   pillText: { fontWeight: "500", textAlign: "left" },
+  pillName: { fontWeight: "400", textAlign: "left", letterSpacing: -0.3, lineHeight: 12 },
   txPill: {
     borderRadius: 3,
     borderLeftWidth: 2,
-    paddingHorizontal: 3,
+    paddingHorizontal: 2,
     paddingVertical: 2,
     minHeight: 16,
     justifyContent: "center",
   },
-  txPillText: { fontWeight: "400", textAlign: "left" },
+  txPillText: { fontWeight: "500", textAlign: "left" },
   moreText: { fontSize: 10, textAlign: "center", fontWeight: "500" },
   fab: {
     position: "absolute", right: SPACING.lg, bottom: 24, width: 56, height: 56, borderRadius: 28,
