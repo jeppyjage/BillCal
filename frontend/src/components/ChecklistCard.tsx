@@ -173,7 +173,6 @@ export default function ChecklistCard({ title, icon, accent, api, testIDPrefix =
   return (
     <View style={[s.card, { backgroundColor: theme.surfaceSecondary, borderColor: theme.border }]} testID={`${testIDPrefix}-card`}>
       <View style={s.header}>
-        <Ionicons name={icon} size={18} color={accent} />
         <Text style={[s.title, { color: theme.onSurface }]} numberOfLines={1}>{title}</Text>
         {items.length > 0 && (
           <View style={[s.badge, { backgroundColor: theme.brandTertiary }]}>

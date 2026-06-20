@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState, useEffect } from "react";
-import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, Modal, useWindowDimensions } from "react-native";
+import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
@@ -34,9 +34,8 @@ export default function CalendarScreen() {
   const isDark = useIsDark();
   const weekBarBg = isDark ? "#06080F" : theme.borderStrong;
   const { token } = useAuth();
-  const { height: windowHeight } = useWindowDimensions();
-  // Lists section takes 1/4 of available window height.
-  const listsHeight = Math.round(windowHeight * 0.25);
+  // Bottom Shopping/Tasks lists are sized to comfortably fit ~4 entries.
+  const listsHeight = 220;
   const [bills, setBills] = useState<Bill[]>([]);
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -484,7 +483,7 @@ export default function CalendarScreen() {
               <ChecklistCard
                 title="Tasks"
                 icon="checkmark-done-circle"
-                accent="#F97316"
+                accent="#60A5FA"
                 testIDPrefix="tasks"
                 api={{
                   list: () => api.listTasks(token),
