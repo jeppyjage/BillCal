@@ -392,9 +392,9 @@ export default function CalendarScreen() {
                             })}
                             {txVisible.map(t => {
                               const isCredit = t.amount > 0;
-                              const isBillLike = !isCredit && BILL_CATEGORIES.includes(t.category);
-                              if (isBillLike) {
-                                // Render as an orange bill-style pill so visual matches the Bills total
+                              const isSmall = Math.abs(t.amount) <= 15;
+                              if (!isSmall) {
+                                // Big filled pill for anything over $15 (orange for debits, green for credits)
                                 return (
                                   <Pressable
                                     key={t.id}
@@ -402,11 +402,11 @@ export default function CalendarScreen() {
                                     onPress={() => setPopup({ type: "tx", data: t })}
                                     style={[
                                       s.pill,
-                                      { backgroundColor: theme.warning },
+                                      { backgroundColor: isCredit ? theme.success : theme.warning },
                                     ]}
                                   >
                                     <Text numberOfLines={1} style={[s.pillText, { color: "#FFFFFF", fontSize: PILL_FS }]}>
-                                      {`−$${Math.abs(t.amount).toFixed(0)}`}
+                                      {`${isCredit ? "+" : "−"}$${Math.abs(t.amount).toFixed(0)}`}
                                     </Text>
                                     <Text numberOfLines={1} style={[s.pillName, { color: "#FFFFFF", fontSize: NAME_FS }]}>
                                       {t.description}
