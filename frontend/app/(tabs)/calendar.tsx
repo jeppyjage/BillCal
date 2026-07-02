@@ -368,6 +368,32 @@ export default function CalendarScreen() {
                           <View style={s.billsStack}>
                             {visible.map(b => {
                               const isPastDue = !b.paid && b.due_date < todayStr;
+                              const isSmall = b.amount <= 15;
+                              if (isSmall) {
+                                // Compact chip for small bills (≤ $15)
+                                return (
+                                  <Pressable
+                                    key={b.id}
+                                    testID={`cell-bill-${b.id}`}
+                                    onPress={() => setPopup({ type: "bill", data: b })}
+                                    style={[
+                                      s.txPill,
+                                      {
+                                        backgroundColor: theme.surfaceSecondary,
+                                        borderLeftColor: isPastDue ? theme.error : theme.warning,
+                                        opacity: b.paid ? 0.45 : 1,
+                                      },
+                                    ]}
+                                  >
+                                    <Text numberOfLines={1} style={[s.txPillText, { color: theme.onSurfaceSecondary, fontSize: Math.max(8, PILL_FS - 1), textDecorationLine: b.paid ? "line-through" : "none" }]}>
+                                      {`−$${b.amount.toFixed(0)}`}
+                                    </Text>
+                                    <Text numberOfLines={1} style={[s.pillName, { color: theme.onSurfaceSecondary, fontSize: Math.max(8, NAME_FS - 1), fontWeight: "400", textDecorationLine: b.paid ? "line-through" : "none" }]}>
+                                      {b.title}
+                                    </Text>
+                                  </Pressable>
+                                );
+                              }
                               return (
                                 <Pressable
                                   key={b.id}
