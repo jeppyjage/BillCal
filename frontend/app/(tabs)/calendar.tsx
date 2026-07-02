@@ -638,8 +638,8 @@ const s = StyleSheet.create({
   pillName: { fontWeight: "400", textAlign: "left", letterSpacing: -0.3, lineHeight: 12 },
   txPill: {
     borderRadius: 3,
-    borderLeftWidth: 4,
-    paddingHorizontal: 3,
+    borderLeftWidth: 7,
+    paddingHorizontal: 4,
     paddingVertical: 2,
     minHeight: 16,
     justifyContent: "center",
