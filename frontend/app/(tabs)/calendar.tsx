@@ -371,7 +371,7 @@ export default function CalendarScreen() {
                           <View style={s.billsStack}>
                             {visible.map(b => {
                               const isPastDue = !b.paid && b.due_date < todayStr;
-                              const isSmall = b.amount <= 15;
+                              const isSmall = Math.round(b.amount) <= 15;
                               if (isSmall) {
                                 // Compact chip for small bills (≤ $15)
                                 return (
@@ -421,7 +421,7 @@ export default function CalendarScreen() {
                             })}
                             {txVisible.map(t => {
                               const isCredit = t.amount > 0;
-                              const isSmall = Math.abs(t.amount) <= 15;
+                              const isSmall = Math.round(Math.abs(t.amount)) <= 15;
                               if (!isSmall) {
                                 // Big filled pill for anything over $15 (orange for debits, green for credits)
                                 return (
