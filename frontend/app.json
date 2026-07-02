@@ -11,8 +11,11 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSUserNotificationsUsageDescription": "Get reminders before bills are due"
-      }
+        "NSUserNotificationsUsageDescription": "Get reminders before bills are due",
+        "NSCameraUsageDescription": "Scan handwritten lists into your shopping list",
+        "NSPhotoLibraryUsageDescription": "Import photos of lists into the app"
+      },
+      "bundleIdentifier": "com.emergent.billreminderhub.kz2n1h"
     },
     "android": {
       "adaptiveIcon": {
@@ -23,8 +26,11 @@
       "permissions": [
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",
-        "POST_NOTIFICATIONS"
-      ]
+        "POST_NOTIFICATIONS",
+        "CAMERA",
+        "READ_MEDIA_IMAGES"
+      ],
+      "package": "com.emergent.billreminderhub.kz2n1h"
     },
     "web": {
       "bundler": "metro",
@@ -51,28 +57,6 @@
         }
       ]
     ],
-    "ios": {
-      "supportsTablet": true,
-      "infoPlist": {
-        "NSUserNotificationsUsageDescription": "Get reminders before bills are due",
-        "NSCameraUsageDescription": "Scan handwritten lists into your shopping list",
-        "NSPhotoLibraryUsageDescription": "Import photos of lists into the app"
-      }
-    },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#000"
-      },
-      "edgeToEdgeEnabled": true,
-      "permissions": [
-        "RECEIVE_BOOT_COMPLETED",
-        "VIBRATE",
-        "POST_NOTIFICATIONS",
-        "CAMERA",
-        "READ_MEDIA_IMAGES"
-      ]
-    },
     "experiments": {
       "typedRoutes": true
     }
