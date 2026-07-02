@@ -639,7 +639,8 @@ const s = StyleSheet.create({
   txPill: {
     borderRadius: 3,
     borderLeftWidth: 7,
-    paddingHorizontal: 4,
+    paddingLeft: 1,
+    paddingRight: 3,
     paddingVertical: 2,
     minHeight: 16,
     justifyContent: "center",
