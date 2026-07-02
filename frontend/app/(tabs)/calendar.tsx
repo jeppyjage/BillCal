@@ -42,7 +42,6 @@ export default function CalendarScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [cursor, setCursor] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(ymd(new Date()));
-  const [zoom, setZoom] = useState(-1); // -2..+2, default -1 (zoomed in one step from min)
   const [expandedWeek, setExpandedWeek] = useState<number | null>(null);
   const [popup, setPopup] = useState<{ type: "bill"; data: Bill } | { type: "tx"; data: BankTransaction } | null>(null);
 
@@ -189,12 +188,11 @@ export default function CalendarScreen() {
   const goPrev = () => setCursor(new Date(month.y, month.m - 1, 1));
   const goNext = () => setCursor(new Date(month.y, month.m + 1, 1));
 
-  // Zoom now only adjusts cell HEIGHT (width is always 1/7 of screen).
-  const z = Math.max(-2, Math.min(2, zoom));
-  const CELL_HEIGHT = [90, 130, 170, 210, 250][z + 2];
-  const MAX_BILLS = [2, 3, 4, 5, 6][z + 2];
-  const PILL_FS = [10, 11, 12, 13, 14][z + 2];
-  const NAME_FS = [9, 10, 11, 12, 13][z + 2];
+  // Zoom removed — fixed compact grid so more weeks fit at once.
+  const CELL_HEIGHT = 105;
+  const MAX_BILLS = 3;
+  const PILL_FS = 10;
+  const NAME_FS = 9;
 
   const numRows = month.cells.length / 7;
 
@@ -217,25 +215,6 @@ export default function CalendarScreen() {
           {MONTHS[month.m]} {month.y}
         </Text>
         <View style={{ flex: 1 }} />
-        <View style={[s.zoomGroup, { borderColor: theme.border, backgroundColor: theme.surfaceSecondary }]}>
-          <Pressable
-            testID="zoom-out-btn"
-            onPress={() => setZoom(v => Math.max(-2, v - 1))}
-            disabled={z <= -2}
-            style={[s.zoomBtn, { opacity: z <= -2 ? 0.4 : 1 }]}
-          >
-            <Ionicons name="remove" size={16} color={theme.onSurface} />
-          </Pressable>
-          <View style={[s.zoomDivider, { backgroundColor: theme.border }]} />
-          <Pressable
-            testID="zoom-in-btn"
-            onPress={() => setZoom(v => Math.min(2, v + 1))}
-            disabled={z >= 2}
-            style={[s.zoomBtn, { opacity: z >= 2 ? 0.4 : 1 }]}
-          >
-            <Ionicons name="add" size={16} color={theme.onSurface} />
-          </Pressable>
-        </View>
       </View>
 
       <View style={s.viewToggle}>
@@ -581,9 +560,6 @@ const s = StyleSheet.create({
   navGroup: { flexDirection: "row", alignItems: "center" },
   chev: { width: 30, height: 30, alignItems: "center", justifyContent: "center" },
   headerTitle: { fontSize: 16, fontWeight: "500" },
-  zoomGroup: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 10, overflow: "hidden", height: 30 },
-  zoomBtn: { width: 30, height: 30, alignItems: "center", justifyContent: "center" },
-  zoomDivider: { width: 1, height: "100%" },
   weekRow: { flexDirection: "row", borderBottomWidth: 0.5, paddingVertical: 4 },
   weekCell: { flex: 1, alignItems: "center" },
   weekday: { fontSize: 11, fontWeight: "500", letterSpacing: 0.5, textTransform: "uppercase" },
