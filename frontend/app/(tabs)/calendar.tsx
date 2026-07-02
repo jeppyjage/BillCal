@@ -32,6 +32,9 @@ const CAT_COLORS: Record<string, string> = {
 export default function CalendarScreen() {
   const theme = useTheme();
   const isDark = useIsDark();
+  // A shade recessed from the calendar surface — used for the small "chip" pills
+  // so they read as sitting on top of the day cell rather than blending into it.
+  const chipBg = isDark ? "#0A101A" : "#E5E7EB";
   const weekBarBg = isDark ? "#06080F" : theme.borderStrong;
   const { token } = useAuth();
   // Bottom Shopping/Tasks lists are sized to comfortably fit ~4 entries.
@@ -379,7 +382,7 @@ export default function CalendarScreen() {
                                     style={[
                                       s.txPill,
                                       {
-                                        backgroundColor: theme.surfaceSecondary,
+                                        backgroundColor: chipBg,
                                         borderLeftColor: isPastDue ? theme.error : theme.warning,
                                         opacity: b.paid ? 0.45 : 1,
                                       },
@@ -448,7 +451,7 @@ export default function CalendarScreen() {
                                   style={[
                                     s.txPill,
                                     {
-                                      backgroundColor: theme.surfaceSecondary,
+                                      backgroundColor: chipBg,
                                       borderLeftColor: isCredit ? theme.success : theme.info,
                                     },
                                   ]}
