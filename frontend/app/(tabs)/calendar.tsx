@@ -638,7 +638,7 @@ const s = StyleSheet.create({
   pillName: { fontWeight: "400", textAlign: "left", letterSpacing: -0.3, lineHeight: 12 },
   txPill: {
     borderRadius: 3,
-    borderLeftWidth: 12,
+    borderLeftWidth: 6,
     paddingLeft: 2,
     paddingRight: 3,
     paddingVertical: 2,
