@@ -3,7 +3,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { setOnUnauthorized } from "@/src/api/client";
 
-const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL;
+const API_BASE =
+  process.env.EXPO_PUBLIC_BACKEND_URL ||
+  "https://billcal-production.up.railway.app";
 const TOKEN_KEY = "billcal_token";
 const USER_KEY = "billcal_user";
 
