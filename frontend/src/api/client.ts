@@ -1,4 +1,6 @@
-const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL;
+const API_BASE =
+  process.env.EXPO_PUBLIC_BACKEND_URL ||
+  "https://billcal-production.up.railway.app";
 
 export class UnauthorizedError extends Error {
   status: number;
@@ -46,6 +48,13 @@ export interface BankTransaction {
   category: string;
 }
 
+export interface PlaidStatus {
+  configured: boolean;
+  connected: boolean;
+  institutions: string[];
+  last_synced: string | null;
+}
+
 async function request<T>(path: string, token: string | null, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}/api${path}`, {
     ...init,
@@ -88,6 +97,16 @@ export const api = {
   listTransactions: (token: string) => request<BankTransaction[]>("/bank/transactions", token),
   syncBank: (token: string) =>
     request<{ ok: boolean; last_synced: string; transactions_synced: number }>("/bank/sync", token, { method: "POST" }),
+  plaidStatus: (token: string) => request<PlaidStatus>("/bank/plaid/status", token),
+  createPlaidLinkToken: (token: string) =>
+    request<{ link_token: string; expiration?: string }>("/bank/plaid/link_token", token, { method: "POST" }),
+  exchangePlaidToken: (token: string, public_token: string, institution_name?: string) =>
+    request<{ ok: boolean; transactions_synced: number; items_synced: number }>("/bank/plaid/exchange", token, {
+      method: "POST",
+      body: JSON.stringify({ public_token, institution_name }),
+    }),
+  disconnectPlaid: (token: string) =>
+    request<{ ok: boolean }>("/bank/plaid/disconnect", token, { method: "DELETE" }),
   calendarStatus: (token: string) =>
     request<{
       google: { connected: boolean; connected_at: string | null; configured: boolean; default_calendar_id: string | null; default_calendar_name: string | null };
